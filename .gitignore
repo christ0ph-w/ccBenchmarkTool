@@ -1,0 +1,21 @@
+# General
+.DS_Store
+*.log
+.idea/
+.vscode/
+
+# Data directories
+data/
+
+# Environment variables
+.env
+*.env
+!.env.example
+
+# OS specific
+Thumbs.db
+
+# Python (catch-all)
+__pycache__/
+*.pyc
+*.pyo

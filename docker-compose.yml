@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  flask-backend:
+    build: ./backend-flask
+    container_name: flask-clustering-api
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=True
+    volumes:
+      - ./backend-flask:/app
+    networks:
+      - app-network
+
+  # Uncomment when ready to add other services
+  # springboot-backend:
+  #   build: ./backend-springboot
+  #   container_name: springboot-api
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
