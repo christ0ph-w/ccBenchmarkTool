@@ -1,413 +1,247 @@
-import { Button } from "@/components/ui/button";
-import { useFileStore } from "@/stores/fileStore";
-import { useSettingsStore } from "@/stores/settingsStore";
-import { clusteringService } from "@/services/clusteringService";
-import { useNavigate } from "react-router-dom";
-import { useState, useMemo } from "react";
-import { BenchmarkPayload } from "@/types/benchmarkTypes";
-import { AlertCircle, Loader2, FlaskConical, Play, FileText, FolderOpen, TreePine } from "lucide-react";
+import { Button } from '@/components/ui/button';
+import { Play, FlaskConical, CheckCircle2, AlertCircle, Circle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useFileStore } from '@/stores/fileStore';
+import { clusteringService } from '@/services/clusteringService';
+import { useMemo, useState } from 'react';
+import { BENCHMARK_ALGORITHMS } from '@/config/benchmarkAlgorithms';
+import type { BenchmarkPayload, BenchmarkSession } from '@/types/benchmarkTypes';
+
+type StepStatus = 'ok' | 'warning' | 'idle';
+
+interface ValidationStep {
+  label: string;
+  status: StepStatus;
+  detail?: string;
+}
 
 export function ActionsPanel() {
-  const { selectedFiles } = useFileStore();
-  const { clustering, benchmarking } = useSettingsStore();
   const navigate = useNavigate();
+  const { clustering, benchmarking } = useSettingsStore();
+  const { selectedFiles, workingDirectory } = useFileStore();
+  const [clusteringStatus, setClusteringStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
 
-  const [clusteringLoading, setClusteringLoading] = useState(false);
-  const [clusteringError, setClusteringError] = useState<string | null>(null);
-  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
-  const [benchmarkError, setBenchmarkError] = useState<string | null>(null);
-
-  const { eventLogs, pnmlFiles, ptmlFiles, directories } = useMemo(() => {
-    const models = selectedFiles.filter(f =>
-      f.type === 'file' && (f.name.toLowerCase().endsWith('.pnml') || f.name.toLowerCase().endsWith('.ptml'))
-    );
-
+  const { pnmlFiles, ptmlFiles, eventLogs, directories } = useMemo(() => {
     return {
-      eventLogs: selectedFiles.filter(f =>
-        f.type === 'file' && f.name.toLowerCase().endsWith('.xes')
+      pnmlFiles: selectedFiles.filter(
+        (f) => f.type === 'file' && f.name.toLowerCase().endsWith('.pnml')
       ),
-      pnmlFiles: models.filter(f => f.name.toLowerCase().endsWith('.pnml')),
-      ptmlFiles: models.filter(f => f.name.toLowerCase().endsWith('.ptml')),
-      directories: selectedFiles.filter(f => f.type === 'directory'),
+      ptmlFiles: selectedFiles.filter(
+        (f) => f.type === 'file' && f.name.toLowerCase().endsWith('.ptml')
+      ),
+      eventLogs: selectedFiles.filter(
+        (f) => f.type === 'file' && f.name.toLowerCase().endsWith('.xes')
+      ),
+      directories: selectedFiles.filter((f) => f.type === 'directory'),
     };
   }, [selectedFiles]);
 
-  const needsPnml = benchmarking.selectedAlgorithms.some(a => ['ILP', 'SPLITPOINT'].includes(a));
-  const needsPtml = benchmarking.selectedAlgorithms.some(a => ['PTALIGN'].includes(a));
+  const needsPnml = benchmarking.selectedAlgorithms.some(
+    (id) => BENCHMARK_ALGORITHMS[id]?.modelType === 'pnml'
+  );
+  const needsPtml = benchmarking.selectedAlgorithms.some(
+    (id) => BENCHMARK_ALGORITHMS[id]?.modelType === 'ptml'
+  );
 
-  const canRunClustering = eventLogs.length > 0;
-  const canRunBenchmark =
-    (eventLogs.length >= 1 || directories.length >= 1) &&
-    benchmarking.selectedAlgorithms.length > 0 &&
-    (!needsPnml || pnmlFiles.length >= 1) &&
-    (!needsPtml || ptmlFiles.length >= 1);
+  const clusteringSteps = useMemo<ValidationStep[]>(() => {
+    const steps: ValidationStep[] = [];
+
+    steps.push(
+      workingDirectory
+        ? { label: 'Working directory', status: 'ok' }
+        : { label: 'Working directory', status: 'warning', detail: 'Not set' }
+    );
+
+    steps.push(
+      eventLogs.length > 0
+        ? { label: 'Event log', status: 'ok', detail: eventLogs[0].name }
+        : { label: 'Event log', status: 'warning', detail: 'Select a .xes file' }
+    );
+
+    return steps;
+  }, [workingDirectory, eventLogs]);
+
+  const benchmarkSteps = useMemo<ValidationStep[]>(() => {
+    const steps: ValidationStep[] = [];
+
+    steps.push(
+      benchmarking.selectedAlgorithms.length > 0
+        ? {
+            label: 'Algorithms',
+            status: 'ok',
+            detail: benchmarking.selectedAlgorithms.join(', '),
+          }
+        : { label: 'Algorithms', status: 'warning', detail: 'Select in settings' }
+    );
+
+    if (needsPnml) {
+      steps.push(
+        pnmlFiles.length > 0
+          ? { label: 'Petri Net model', status: 'ok', detail: pnmlFiles[0].name }
+          : { label: 'Petri Net model', status: 'warning', detail: 'Required by ' +
+              benchmarking.selectedAlgorithms.filter((id) => BENCHMARK_ALGORITHMS[id]?.modelType === 'pnml').join(', ') }
+      );
+    }
+
+    if (needsPtml) {
+      steps.push(
+        ptmlFiles.length > 0
+          ? { label: 'Process Tree model', status: 'ok', detail: ptmlFiles[0].name }
+          : { label: 'Process Tree model', status: 'warning', detail: 'Required by PTALIGN' }
+      );
+    }
+
+    if (!needsPnml && !needsPtml && benchmarking.selectedAlgorithms.length === 0) {
+      steps.push({ label: 'Model file', status: 'idle' });
+    }
+
+    const hasLogs = eventLogs.length > 0 || directories.length > 0;
+    steps.push(
+      hasLogs
+        ? {
+            label: 'Log data',
+            status: 'ok',
+            detail: directories.length > 0
+              ? directories[0].name
+              : `${eventLogs.length} file${eventLogs.length > 1 ? 's' : ''}`,
+          }
+        : { label: 'Log data', status: 'warning', detail: 'Select logs or a directory' }
+    );
+
+    return steps;
+  }, [benchmarking.selectedAlgorithms, needsPnml, needsPtml, pnmlFiles, ptmlFiles, eventLogs, directories]);
+
+  const canRunClustering = clusteringSteps.every((s) => s.status === 'ok');
+  const canRunBenchmark = benchmarkSteps.every((s) => s.status === 'ok');
 
   const handleRunClustering = async () => {
     if (!canRunClustering) return;
 
-    setClusteringLoading(true);
-    setClusteringError(null);
-
+    setClusteringStatus('running');
     try {
-      const backendParams = transformClusteringParams(clustering);
-      const relativePath = extractRelativePath(eventLogs[0].path);
-
-      const payload = {
-        file_path: relativePath,
+      await clusteringService.clusterFile({
+        file_path: eventLogs[0].path,
         clustering_algorithm: clustering.algorithm,
-        algorithm_params: backendParams,
-      };
-
-      await clusteringService.clusterFile(payload);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      setClusteringError(errorMsg);
-    } finally {
-      setClusteringLoading(false);
+        algorithm_params: clustering.params,
+      });
+      setClusteringStatus('done');
+    } catch {
+      setClusteringStatus('error');
     }
   };
 
-  const handleRunBenchmarking = () => {
+  const handleRunBenchmark = () => {
     if (!canRunBenchmark) return;
 
-    setBenchmarkLoading(true);
-    setBenchmarkError(null);
+    const logDir = directories.length > 0
+      ? directories[0].path
+      : eventLogs[0].path;
 
-    try {
-      const logPath = eventLogs[0]?.path ?? directories[0]?.path;
+    const payloads: BenchmarkPayload[] = benchmarking.selectedAlgorithms.map((algorithmId) => {
+      const algo = BENCHMARK_ALGORITHMS[algorithmId];
 
       const payload: BenchmarkPayload = {
-        pnmlModelPath: pnmlFiles[0]?.path,
-        ptmlModelPath: ptmlFiles[0]?.path,
-        logDirectory: logPath,
-        algorithms: benchmarking.selectedAlgorithms,
+        algorithm: algorithmId,
         numThreads: benchmarking.coreCount,
+        logDirectory: logDir,
       };
 
-      navigate('/benchmark', {
-        state: {
-          payload,
-          isComparative: benchmarking.selectedAlgorithms.length > 1,
-        },
-      });
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      setBenchmarkError(errorMsg);
-    } finally {
-      setBenchmarkLoading(false);
-    }
-  };
+      if (algo.modelType === 'pnml') {
+        payload.pnmlModelPath = pnmlFiles[0].path;
+      } else {
+        payload.ptmlModelPath = ptmlFiles[0].path;
+      }
 
-  const getBenchmarkValidationMessage = (): string | null => {
-    if (benchmarking.selectedAlgorithms.length === 0) {
-      return 'Select at least one algorithm';
-    }
-    if (eventLogs.length === 0 && directories.length === 0) {
-      return 'Select a log file (.xes) or directory';
-    }
-    if (needsPnml && pnmlFiles.length === 0) {
-      return 'ILP/SPLITPOINT require a .pnml file';
-    }
-    if (needsPtml && ptmlFiles.length === 0) {
-      return 'PTALIGN requires a .ptml file';
-    }
-    return null;
+      if (algorithmId === 'PTALIGN') {
+        payload.useBounds = benchmarking.params.useBounds ?? true;
+        payload.useWarmStart = benchmarking.params.useWarmStart ?? true;
+        payload.boundThreshold = benchmarking.params.boundThreshold ?? 1.0;
+        payload.boundedSkipStrategy = benchmarking.params.boundedSkipStrategy ?? 'upper';
+        payload.propagateCostsAcrossClusters = benchmarking.params.propagateCostsAcrossClusters ?? false;
+      }
+
+      return payload;
+    });
+
+    const session: BenchmarkSession = { payloads };
+    navigate('/benchmark', { state: session });
   };
 
   return (
-    <div className="flex flex-col h-full border rounded-lg overflow-hidden">
-      <Header />
+    <div className="flex flex-col h-full border rounded-lg">
+      <div className="p-3 border-b shrink-0">
+        <h3 className="font-semibold">Actions</h3>
+      </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="space-y-6">
-          <ClusteringSection
-            algorithm={clustering.algorithm}
-            params={clustering.params}
-            disabled={!canRunClustering}
-            loading={clusteringLoading}
-            error={clusteringError}
-            onRun={handleRunClustering}
-          />
+      <div className="p-4 space-y-6">
+        <ActionSection title="Clustering">
+          <StepList steps={clusteringSteps} />
+          <Button
+            onClick={handleRunClustering}
+            disabled={!canRunClustering || clusteringStatus === 'running'}
+            className="w-full mt-3"
+          >
+            <FlaskConical className="h-4 w-4 mr-2" />
+            {clusteringStatus === 'running' ? 'Clustering...' : 'Run Clustering'}
+          </Button>
+        </ActionSection>
 
-          <BenchmarkSection
-            pnmlFiles={pnmlFiles}
-            ptmlFiles={ptmlFiles}
-            eventLogs={eventLogs}
-            directories={directories}
-            selectedAlgorithms={benchmarking.selectedAlgorithms}
-            coreCount={benchmarking.coreCount}
+        <ActionSection title="Benchmarking">
+          <StepList steps={benchmarkSteps} />
+          <Button
+            onClick={handleRunBenchmark}
             disabled={!canRunBenchmark}
-            loading={benchmarkLoading}
-            error={benchmarkError}
-            validationMessage={getBenchmarkValidationMessage()}
-            onRun={handleRunBenchmarking}
-          />
-        </div>
+            className="w-full mt-3"
+            variant="secondary"
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Run Benchmark
+          </Button>
+        </ActionSection>
       </div>
     </div>
   );
 }
 
-// Sub-components
-
-function Header() {
+function ActionSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between p-3 border-b shrink-0">
-      <h3 className="font-semibold">Actions</h3>
-    </div>
-  );
-}
-
-interface ClusteringSectionProps {
-  algorithm: string;
-  params: Record<string, any>;
-  disabled: boolean;
-  loading: boolean;
-  error: string | null;
-  onRun: () => void;
-}
-
-function ClusteringSection({ algorithm, params, disabled, loading, error, onRun }: ClusteringSectionProps) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <h4 className="font-medium text-sm">Clustering</h4>
-        <p className="text-xs text-muted-foreground mt-1">
-          Cluster event logs using {algorithm} clustering with Levenshtein distance
-        </p>
-      </div>
-
-      <ConfigDisplay>
-        <ConfigItem label="Algorithm" value={algorithm} />
-        {algorithm === 'hierarchical' && (
-          <>
-            <ConfigItem label="Linkage" value={params.linkage} />
-            {params.useDistanceThreshold ? (
-              <ConfigItem label="Distance Threshold" value={params.distance_threshold} />
-            ) : (
-              <ConfigItem label="Clusters" value={params.n_clusters} />
-            )}
-          </>
-        )}
-        {algorithm === 'dbscan' && (
-          <>
-            <ConfigItem label="EPS" value={params.eps} />
-            <ConfigItem label="Min Samples" value={params.min_samples} />
-          </>
-        )}
-      </ConfigDisplay>
-
-      <ErrorDisplay error={error} />
-
-      <ActionButton onClick={onRun} disabled={disabled} loading={loading}>
-        <FlaskConical className="h-4 w-4 mr-1" />
-        Run Clustering
-      </ActionButton>
-    </div>
-  );
-}
-
-interface FileRef {
-  id: string;
-  name: string;
-  path: string;
-}
-
-interface BenchmarkSectionProps {
-  pnmlFiles: FileRef[];
-  ptmlFiles: FileRef[];
-  eventLogs: FileRef[];
-  directories: FileRef[];
-  selectedAlgorithms: string[];
-  coreCount: number;
-  disabled: boolean;
-  loading: boolean;
-  error: string | null;
-  validationMessage: string | null;
-  onRun: () => void;
-}
-
-function BenchmarkSection({
-  pnmlFiles,
-  ptmlFiles,
-  eventLogs,
-  directories,
-  selectedAlgorithms,
-  coreCount,
-  disabled,
-  loading,
-  error,
-  validationMessage,
-  onRun,
-}: BenchmarkSectionProps) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <h4 className="font-medium text-sm">Conformance Checking</h4>
-        <p className="text-xs text-muted-foreground mt-1">
-          Benchmark conformance checking algorithms
-        </p>
-      </div>
-
-      <ConfigDisplay>
-        <FileList
-          label="Petri Net (.pnml)"
-          files={pnmlFiles}
-          icon={<FileText className="h-3 w-3 inline mr-1" />}
-          emptyText="No .pnml file selected"
-        />
-        <FileList
-          label="Process Tree (.ptml)"
-          files={ptmlFiles}
-          icon={<TreePine className="h-3 w-3 inline mr-1" />}
-          emptyText="No .ptml file selected"
-        />
-        <FileList
-          label="Log Input"
-          files={eventLogs.length > 0 ? eventLogs : directories}
-          icon={eventLogs.length > 0
-            ? <FileText className="h-3 w-3 inline mr-1" />
-            : <FolderOpen className="h-3 w-3 inline mr-1" />
-          }
-          emptyText="No log file or directory selected"
-        />
-      </ConfigDisplay>
-
-      <ConfigDisplay>
-        <ConfigItem label="Algorithms" value={`${selectedAlgorithms.length} selected`} />
-        {selectedAlgorithms.length > 0 && (
-          <div className="text-xs text-muted-foreground">{selectedAlgorithms.join(', ')}</div>
-        )}
-        <ConfigItem label="Cores" value={coreCount} />
-      </ConfigDisplay>
-
-      {validationMessage && (
-        <div className="flex gap-2 items-start text-xs bg-amber-50 border border-amber-200 rounded p-2 text-amber-700">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>{validationMessage}</span>
-        </div>
-      )}
-
-      <ErrorDisplay error={error} />
-
-      <ActionButton onClick={onRun} disabled={disabled} loading={loading} variant="secondary">
-        <Play className="h-4 w-4 mr-1" />
-        Run Benchmark
-      </ActionButton>
-    </div>
-  );
-}
-
-// Shared UI
-
-function ConfigDisplay({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="text-xs space-y-1 bg-muted/30 p-2 rounded">
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-slate-700">{title}</h4>
       {children}
     </div>
   );
 }
 
-function ConfigItem({ label, value }: { label: string; value: string | number }) {
+function StepList({ steps }: { steps: ValidationStep[] }) {
   return (
-    <div>
-      <span className="font-medium">{label}:</span> {value}
+    <div className="space-y-1.5">
+      {steps.map((step) => (
+        <div key={step.label} className="flex items-center gap-2 text-sm">
+          <StatusIcon status={step.status} />
+          <span className={step.status === 'warning' ? 'text-amber-700' : 'text-slate-700'}>
+            {step.label}
+          </span>
+          {step.detail && (
+            <span className={`text-xs ml-auto truncate max-w-[140px] ${
+              step.status === 'ok' ? 'text-muted-foreground' : 'text-amber-600 italic'
+            }`}>
+              {step.detail}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
 
-interface FileListProps {
-  label: string;
-  files: FileRef[];
-  icon: React.ReactNode;
-  emptyText: string;
-}
-
-function FileList({ label, files, icon, emptyText }: FileListProps) {
-  return (
-    <>
-      <div><span className="font-medium">{label}:</span></div>
-      <div className="ml-2 text-muted-foreground">
-        {files.length > 0 ? (
-          files.map((f) => (
-            <div key={f.id} className="truncate">
-              {icon} {extractRelativePath(f.path)}
-            </div>
-          ))
-        ) : (
-          <div className="text-amber-600">
-            <AlertCircle className="h-3 w-3 inline mr-1" />
-            {emptyText}
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-function ErrorDisplay({ error }: { error: string | null }) {
-  if (!error) return null;
-
-  return (
-    <div className="flex gap-2 items-start text-xs bg-red-50 border border-red-200 rounded p-2 text-red-700">
-      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-      <span>{error}</span>
-    </div>
-  );
-}
-
-interface ActionButtonProps {
-  onClick: () => void;
-  disabled: boolean;
-  loading: boolean;
-  variant?: "default" | "secondary";
-  children: React.ReactNode;
-}
-
-function ActionButton({ onClick, disabled, loading, variant = "default", children }: ActionButtonProps) {
-  return (
-    <Button onClick={onClick} disabled={disabled || loading} size="sm" variant={variant} className="w-fit">
-      {loading ? (
-        <>
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          Running...
-        </>
-      ) : (
-        children
-      )}
-    </Button>
-  );
-}
-
-// Helpers
-
-function transformClusteringParams(clustering: { algorithm: string; params: Record<string, any> }) {
-  const backendParams: Record<string, any> = {};
-
-  if (clustering.algorithm === 'hierarchical') {
-    backendParams.linkage = clustering.params.linkage;
-    if (clustering.params.useDistanceThreshold) {
-      backendParams.distance_threshold = clustering.params.distance_threshold;
-    } else {
-      backendParams.n_clusters = clustering.params.n_clusters;
-    }
-  } else if (clustering.algorithm === 'dbscan') {
-    backendParams.eps = clustering.params.eps;
-    backendParams.min_samples = clustering.params.min_samples;
+function StatusIcon({ status }: { status: StepStatus }) {
+  switch (status) {
+    case 'ok':
+      return <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />;
+    case 'warning':
+      return <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />;
+    case 'idle':
+      return <Circle className="h-4 w-4 text-slate-300 shrink-0" />;
   }
-
-  return backendParams;
-}
-
-function extractRelativePath(fullPath: string): string {
-  const separators = ['\\data\\', '/data/'];
-
-  for (const sep of separators) {
-    const dataIndex = fullPath.toLowerCase().indexOf(sep.toLowerCase());
-    if (dataIndex !== -1) {
-      return fullPath.substring(dataIndex + sep.length);
-    }
-  }
-
-  return fullPath;
 }

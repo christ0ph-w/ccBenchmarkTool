@@ -1,6 +1,5 @@
 export { BenchmarkHeader } from './BenchmarkHeader';
 export { BenchmarkStatusBanner } from './BenchmarkStatusBanner';
-export { ComparativeResultsCard } from './ComparativeResultsCard';
-export { SingleResultsCard } from './SingleResultsCard';
-export { PerformanceCharts } from './PerformanceCharts';
+export { ResultSummaryCard } from './ResultSummaryCard';
+export { LogResultsSection } from './LogResultsSection';
 export { EmptyState } from './EmptyState';

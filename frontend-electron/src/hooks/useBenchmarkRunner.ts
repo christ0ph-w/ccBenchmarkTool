@@ -1,21 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { benchmarkingService } from '@/services/benchmarkingService';
-import { BenchmarkPayload, BenchmarkResult, ComparativeResult } from '@/types/benchmarkTypes';
+import { BenchmarkSession, BenchmarkResult } from '@/types/benchmarkTypes';
 
 export type BenchmarkStatus = 'idle' | 'running' | 'completed' | 'error';
-
-interface BenchmarkSession {
-  payload: BenchmarkPayload;
-  isComparative: boolean;
-}
 
 interface UseBenchmarkRunnerReturn {
   session: BenchmarkSession | null;
   status: BenchmarkStatus;
-  benchmarkId: string;
+  currentAlgorithm: string;
+  progress: { current: number; total: number };
   error: string;
-  results: BenchmarkResult | ComparativeResult | null;
+  results: Map<string, BenchmarkResult>;
   startBenchmark: () => Promise<void>;
   goBack: () => void;
 }
@@ -26,18 +22,20 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
 
   const [session, setSession] = useState<BenchmarkSession | null>(null);
   const [status, setStatus] = useState<BenchmarkStatus>('idle');
-  const [benchmarkId, setBenchmarkId] = useState('');
+  const [currentAlgorithm, setCurrentAlgorithm] = useState('');
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState('');
-  const [results, setResults] = useState<BenchmarkResult | ComparativeResult | null>(null);
+  const [results, setResults] = useState<Map<string, BenchmarkResult>>(new Map());
 
   useEffect(() => {
     const state = location.state as BenchmarkSession | null;
-    if (state?.payload) {
+    if (state?.payloads) {
       setSession(state);
       setStatus('idle');
-      setBenchmarkId('');
+      setCurrentAlgorithm('');
+      setProgress({ current: 0, total: state.payloads.length });
       setError('');
-      setResults(null);
+      setResults(new Map());
     }
   }, [location.state]);
 
@@ -46,23 +44,41 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
 
     setStatus('running');
     setError('');
+    setResults(new Map());
+
+    const total = session.payloads.length;
+    setProgress({ current: 0, total });
 
     try {
-      const { payload, isComparative } = session;
+      for (let i = 0; i < total; i++) {
+        const payload = session.payloads[i];
+        setCurrentAlgorithm(payload.algorithm);
+        setProgress({ current: i + 1, total });
 
-      const { benchmarkId: id } = await benchmarkingService.startBenchmark({
-        pnmlModelPath: payload.pnmlModelPath,
-        ptmlModelPath: payload.ptmlModelPath,
-        logDirectory: payload.logDirectory,
-        algorithms: payload.algorithms,
-        numThreads: payload.numThreads,
-      });
+        const response = await benchmarkingService.startBenchmark({
+          pnmlModelPath: payload.pnmlModelPath,
+          ptmlModelPath: payload.ptmlModelPath,
+          logDirectory: payload.logDirectory,
+          algorithm: payload.algorithm,
+          numThreads: payload.numThreads,
+          useBounds: payload.useBounds,
+          useWarmStart: payload.useWarmStart,
+          boundThreshold: payload.boundThreshold,
+          boundedSkipStrategy: payload.boundedSkipStrategy,
+          propagateCostsAcrossClusters: payload.propagateCostsAcrossClusters,
+        });
 
-      setBenchmarkId(id);
+        const result = await pollForResult(response.benchmarkId);
 
-      const result = await pollForResults(id, isComparative);
-      setResults(result);
+        setResults((prev) => {
+          const updated = new Map(prev);
+          updated.set(payload.algorithm, result);
+          return updated;
+        });
+      }
+
       setStatus('completed');
+      setCurrentAlgorithm('');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMsg);
@@ -77,7 +93,8 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
   return {
     session,
     status,
-    benchmarkId,
+    currentAlgorithm,
+    progress,
     error,
     results,
     startBenchmark,
@@ -85,23 +102,18 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
   };
 }
 
-async function pollForResults(
+async function pollForResult(
   benchmarkId: string,
-  isComparative: boolean,
   maxAttempts = 60,
   intervalMs = 5000
-): Promise<BenchmarkResult | ComparativeResult> {
+): Promise<BenchmarkResult> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(intervalMs);
 
     try {
-      if (isComparative) {
-        return await benchmarkingService.getComparativeResults(benchmarkId);
-      } else {
-        return await benchmarkingService.getResults(benchmarkId);
-      }
+      return await benchmarkingService.getResult(benchmarkId);
     } catch {
-      // Result not ready yet, continue polling
+      // Not ready yet
     }
   }
 

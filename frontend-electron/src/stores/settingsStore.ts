@@ -9,6 +9,7 @@ interface ClusteringSettings {
 interface BenchmarkingSettings {
   selectedAlgorithms: string[];
   coreCount: number;
+  params: Record<string, any>;
 }
 
 interface SettingsState {
@@ -35,6 +36,7 @@ const defaultClusteringSettings: ClusteringSettings = {
 const defaultBenchmarkingSettings: BenchmarkingSettings = {
   selectedAlgorithms: [],
   coreCount: 1,
+  params: {},
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -56,7 +58,14 @@ export const useSettingsStore = create<SettingsState>()(
 
       setBenchmarkingSettings: (settings) =>
         set((state) => ({
-          benchmarking: { ...state.benchmarking, ...settings },
+          benchmarking: {
+            selectedAlgorithms: settings.selectedAlgorithms ?? state.benchmarking.selectedAlgorithms,
+            coreCount: settings.coreCount ?? state.benchmarking.coreCount,
+            params: {
+              ...state.benchmarking.params,
+              ...settings.params,
+            },
+          },
         })),
 
       clearAllSettings: () =>
@@ -67,6 +76,20 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'app-settings',
+      version: 1,
+      migrate: (persisted: any, version: number) => {
+        if (version === 0 || !version) {
+          return {
+            clustering: persisted?.clustering ?? defaultClusteringSettings,
+            benchmarking: {
+              selectedAlgorithms: persisted?.benchmarking?.selectedAlgorithms ?? [],
+              coreCount: persisted?.benchmarking?.coreCount ?? 1,
+              params: persisted?.benchmarking?.params ?? {},
+            },
+          };
+        }
+        return persisted;
+      },
     }
   )
 );

@@ -1,12 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { useBenchmarkRunner } from '@/hooks/useBenchmarkRunner';
-import { BenchmarkResult, ComparativeResult } from '@/types/benchmarkTypes';
 import {
   BenchmarkHeader,
   BenchmarkStatusBanner,
-  ComparativeResultsCard,
-  SingleResultsCard,
-  PerformanceCharts,
+  ResultSummaryCard,
+  LogResultsSection,
   EmptyState,
 } from '@/components/benchmark';
 
@@ -14,7 +12,8 @@ export function BenchmarkView() {
   const {
     session,
     status,
-    benchmarkId,
+    currentAlgorithm,
+    progress,
     error,
     results,
     startBenchmark,
@@ -25,42 +24,39 @@ export function BenchmarkView() {
     return <NoSessionFallback onBack={goBack} />;
   }
 
-  const { isComparative } = session;
-  const showResults = results && status === 'completed';
+  const algorithms = session.payloads.map((p) => p.algorithm);
+  const hasResults = results.size > 0;
 
   return (
     <div className="flex flex-col h-full gap-6 overflow-auto p-6">
       <BenchmarkHeader
-        isComparative={isComparative}
+        algorithms={algorithms}
         status={status}
+        currentAlgorithm={currentAlgorithm}
+        progress={progress}
         onStart={startBenchmark}
         onBack={goBack}
       />
 
       <BenchmarkStatusBanner
         status={status}
-        benchmarkId={benchmarkId}
+        currentAlgorithm={currentAlgorithm}
+        progress={progress}
         error={error}
       />
 
-      {showResults && isComparative && (
-        <ComparativeResults results={results as ComparativeResult} />
+      {hasResults && (
+        <div className="space-y-6">
+          {Array.from(results.entries()).map(([algorithm, result]) => (
+            <div key={algorithm} className="space-y-4">
+              <ResultSummaryCard results={result} />
+              <LogResultsSection results={result} />
+            </div>
+          ))}
+        </div>
       )}
 
-      {showResults && !isComparative && (
-        <SingleResultsCard results={results as BenchmarkResult} />
-      )}
-
-      {!results && status === 'idle' && <EmptyState />}
-    </div>
-  );
-}
-
-function ComparativeResults({ results }: { results: ComparativeResult }) {
-  return (
-    <div className="space-y-6">
-      <ComparativeResultsCard results={results} />
-      <PerformanceCharts results={results} />
+      {!hasResults && status === 'idle' && <EmptyState />}
     </div>
   );
 }

@@ -3,62 +3,49 @@ import { BenchmarkStatus } from '@/hooks/useBenchmarkRunner';
 
 interface BenchmarkStatusBannerProps {
   status: BenchmarkStatus;
-  benchmarkId: string;
+  currentAlgorithm: string;
+  progress: { current: number; total: number };
   error: string;
 }
 
-export function BenchmarkStatusBanner({
-  status,
-  benchmarkId,
-  error,
-}: BenchmarkStatusBannerProps) {
+export function BenchmarkStatusBanner({ status, currentAlgorithm, progress, error }: BenchmarkStatusBannerProps) {
+  if (status === 'idle' && !error) return null;
+
   return (
     <div className="space-y-3">
-      {benchmarkId && <StatusBar status={status} benchmarkId={benchmarkId} />}
-      {error && <ErrorBar error={error} />}
+      {status === 'running' && (
+        <div className="space-y-2">
+          <div className="p-3 rounded-lg border bg-yellow-50 border-yellow-200 text-yellow-900">
+            <p className="text-sm font-medium">
+              Running {currentAlgorithm} ({progress.current}/{progress.total})
+            </p>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-2">
+            <div
+              className="bg-yellow-500 h-2 rounded-full transition-all"
+              style={{ width: `${(progress.current / progress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {status === 'completed' && (
+        <div className="p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900">
+          <p className="text-sm font-medium">
+            Completed — {progress.total} algorithm{progress.total > 1 ? 's' : ''} finished
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-900 text-sm font-semibold flex items-center gap-1">
+            <AlertCircle className="h-4 w-4" />
+            Error
+          </p>
+          <p className="text-red-700 text-sm mt-1">{error}</p>
+        </div>
+      )}
     </div>
   );
-}
-
-function StatusBar({ status, benchmarkId }: { status: BenchmarkStatus; benchmarkId: string }) {
-  const config = getStatusConfig(status);
-
-  return (
-    <div className={`p-3 rounded-lg border ${config.colors}`}>
-      <p className="text-sm font-medium">
-        Status: <span className="font-bold">{config.label}</span>
-        <span className="text-xs ml-4">ID: {benchmarkId.substring(0, 12)}...</span>
-      </p>
-    </div>
-  );
-}
-
-function ErrorBar({ error }: { error: string }) {
-  return (
-    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-      <p className="text-red-900 text-sm font-semibold flex items-center gap-1">
-        <AlertCircle className="h-4 w-4" />
-        Error
-      </p>
-      <p className="text-red-700 text-sm mt-1">{error}</p>
-    </div>
-  );
-}
-
-interface StatusConfig {
-  label: string;
-  colors: string;
-}
-
-function getStatusConfig(status: BenchmarkStatus): StatusConfig {
-  switch (status) {
-    case 'running':
-      return { label: 'RUNNING', colors: 'bg-yellow-50 border-yellow-200 text-yellow-900' };
-    case 'completed':
-      return { label: 'COMPLETED', colors: 'bg-blue-50 border-blue-200 text-blue-900' };
-    case 'error':
-      return { label: 'ERROR', colors: 'bg-red-50 border-red-200 text-red-900' };
-    default:
-      return { label: 'IDLE', colors: 'bg-slate-50 border-slate-200 text-slate-900' };
-  }
 }
