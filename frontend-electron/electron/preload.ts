@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDataDirectories: () => ipcRenderer.invoke('get-data-directories'),
   uploadFile: (fileData: any) => ipcRenderer.invoke('upload-file', fileData),
   deleteFile: (filePath: string) => ipcRenderer.invoke('delete-file', filePath),
+  readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
 
   // Console logging
   onMainConsoleLog: (callback: (data: any) => void) => {

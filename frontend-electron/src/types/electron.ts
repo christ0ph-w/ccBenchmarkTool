@@ -32,6 +32,12 @@ export interface DataDirectory {
   path: string;
 }
 
+export interface ReadFileResult {
+  success: boolean;
+  content?: string;
+  error?: string;
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -42,6 +48,7 @@ declare global {
       getDataDirectories: () => Promise<DataDirectory[]>;
       uploadFile: (fileData: UploadFileData) => Promise<UploadResult>;
       deleteFile: (filePath: string) => Promise<DeleteResult>;
+      readFile: (filePath: string) => Promise<ReadFileResult>;
       onMainConsoleLog: (callback: (data: any) => void) => void;
     };
   }

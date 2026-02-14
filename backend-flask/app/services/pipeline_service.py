@@ -15,11 +15,13 @@ from app.utils.exporting import XESExporter
 logger = logging.getLogger(__name__)
 
 class ClusteringPipeline:
-    def __init__(self):
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
         self. extraction_result: Optional[Dict[str, Any]] = None
         self.encoder: Optional[ActivityEncoder] = None
         self.distance_matrix: Optional[np.ndarray] = None
         self.clustering_result: Optional[Dict[str, Any]] = None
+       
     
     def run(
         self,

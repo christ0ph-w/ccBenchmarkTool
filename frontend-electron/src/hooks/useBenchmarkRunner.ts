@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { benchmarkingService } from '@/services/benchmarkingService';
-import { BenchmarkSession, BenchmarkResult } from '@/types/benchmarkTypes';
+import { fileService } from '@/services/fileService';
+import { BenchmarkSession, BenchmarkResult, BenchmarkExportedResult } from '@/types/benchmarkTypes';
 
 export type BenchmarkStatus = 'idle' | 'running' | 'completed' | 'error';
+export type ResultSource = 'live' | 'file';
 
 interface UseBenchmarkRunnerReturn {
   session: BenchmarkSession | null;
@@ -11,7 +13,9 @@ interface UseBenchmarkRunnerReturn {
   currentAlgorithm: string;
   progress: { current: number; total: number };
   error: string;
-  results: Map<string, BenchmarkResult>;
+  liveResults: Map<string, BenchmarkResult>;
+  fileResults: BenchmarkExportedResult[];
+  resultSource: ResultSource | null;
   startBenchmark: () => Promise<void>;
   goBack: () => void;
 }
@@ -25,26 +29,57 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
   const [currentAlgorithm, setCurrentAlgorithm] = useState('');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState('');
-  const [results, setResults] = useState<Map<string, BenchmarkResult>>(new Map());
+  const [liveResults, setLiveResults] = useState<Map<string, BenchmarkResult>>(new Map());
+  const [fileResults, setFileResults] = useState<BenchmarkExportedResult[]>([]);
+  const [resultSource, setResultSource] = useState<ResultSource | null>(null);
 
   useEffect(() => {
     const state = location.state as BenchmarkSession | null;
-    if (state?.payloads) {
-      setSession(state);
+    if (!state) return;
+
+    setSession(state);
+    setError('');
+    setLiveResults(new Map());
+    setFileResults([]);
+
+    if (state.resultFiles && state.resultFiles.length > 0) {
+      setResultSource('file');
+      setStatus('running');
+      loadResultFiles(state.resultFiles);
+    } else if (state.payloads) {
+      setResultSource('live');
       setStatus('idle');
-      setCurrentAlgorithm('');
       setProgress({ current: 0, total: state.payloads.length });
-      setError('');
-      setResults(new Map());
     }
   }, [location.state]);
 
+  const loadResultFiles = async (filePaths: string[]) => {
+    try {
+      const loaded: BenchmarkExportedResult[] = [];
+
+      for (const filePath of filePaths) {
+        const content = await fileService.readFile(filePath);
+        const parsed = JSON.parse(content) as BenchmarkExportedResult;
+        loaded.push(parsed);
+      }
+
+      setFileResults(loaded);
+      setProgress({ current: loaded.length, total: loaded.length });
+      setStatus('completed');
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load result file';
+      setError(errorMsg);
+      setStatus('error');
+    }
+  };
+
   const startBenchmark = useCallback(async () => {
-    if (!session) return;
+    if (!session?.payloads) return;
 
     setStatus('running');
     setError('');
-    setResults(new Map());
+    setLiveResults(new Map());
+    setResultSource('live');
 
     const total = session.payloads.length;
     setProgress({ current: 0, total });
@@ -70,7 +105,7 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
 
         const result = await pollForResult(response.benchmarkId);
 
-        setResults((prev) => {
+        setLiveResults((prev) => {
           const updated = new Map(prev);
           updated.set(payload.algorithm, result);
           return updated;
@@ -96,7 +131,9 @@ export function useBenchmarkRunner(): UseBenchmarkRunnerReturn {
     currentAlgorithm,
     progress,
     error,
-    results,
+    liveResults,
+    fileResults,
+    resultSource,
     startBenchmark,
     goBack,
   };

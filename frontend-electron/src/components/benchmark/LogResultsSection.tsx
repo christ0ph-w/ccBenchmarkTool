@@ -1,32 +1,50 @@
 import { Card } from '@/components/ui/card';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { BenchmarkResult, LogBenchmarkResult, TimingBreakdown, OptimizationStats } from '@/types/benchmarkTypes';
+import { BenchmarkResult, BenchmarkExportedResult, LogBenchmarkResult, TimingBreakdown, OptimizationStats } from '@/types/benchmarkTypes';
 
-interface LogResultsSectionProps {
+interface LiveLogResultsProps {
   results: BenchmarkResult;
+  exported?: never;
 }
 
-export function LogResultsSection({ results }: LogResultsSectionProps) {
-  if (!results.logResults || results.logResults.length === 0) {
-    return null;
+interface FileLogResultsProps {
+  results?: never;
+  exported: BenchmarkExportedResult;
+}
+
+type LogResultsSectionProps = LiveLogResultsProps | FileLogResultsProps;
+
+export function LogResultsSection(props: LogResultsSectionProps) {
+  const logs: { name: string; data: LogBenchmarkResult }[] = [];
+
+  if (props.exported) {
+    Object.entries(props.exported.logs).forEach(([name, data]) => {
+      logs.push({ name, data });
+    });
+  } else if (props.results?.logResults) {
+    props.results.logResults.forEach((data, index) => {
+      logs.push({ name: `Log ${index + 1}`, data });
+    });
   }
+
+  if (logs.length === 0) return null;
 
   return (
     <Card className="p-6">
       <h2 className="text-xl font-bold mb-4">
-        Log Results ({results.logResults.length})
+        Log Results ({logs.length})
       </h2>
       <div className="space-y-3">
-        {results.logResults.map((log, index) => (
-          <LogResultItem key={index} log={log} index={index} />
+        {logs.map((log) => (
+          <LogResultItem key={log.name} name={log.name} log={log.data} />
         ))}
       </div>
     </Card>
   );
 }
 
-function LogResultItem({ log, index }: { log: LogBenchmarkResult; index: number }) {
+function LogResultItem({ name, log }: { name: string; log: LogBenchmarkResult }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -37,7 +55,7 @@ function LogResultItem({ log, index }: { log: LogBenchmarkResult; index: number 
       >
         <div className="flex items-center gap-2">
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <span className="font-medium">Log {index + 1}</span>
+          <span className="font-medium">{name}</span>
         </div>
         <div className="flex gap-4 text-sm text-muted-foreground">
           <span>Fitness: {formatPercent(log.avg_fitness)}</span>

@@ -163,5 +163,6 @@ export interface BenchmarkPayload {
 // Session passed to BenchmarkView via navigate state
 
 export interface BenchmarkSession {
-  payloads: BenchmarkPayload[];
+  payloads?: BenchmarkPayload[];
+  resultFiles?: string[];
 }

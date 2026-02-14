@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class XESExporter:
-    def __init__(self):
-        pass
+    def __init__(self, verbose: bool=False):
+        self.verbose=verbose
 
     def _build_param_suffix(self, algorithm: str, params:  Dict[str, Any]) -> str:
         if algorithm == 'hierarchical': 

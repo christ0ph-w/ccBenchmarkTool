@@ -15,7 +15,9 @@ export function BenchmarkView() {
     currentAlgorithm,
     progress,
     error,
-    results,
+    liveResults,
+    fileResults,
+    resultSource,
     startBenchmark,
     goBack,
   } = useBenchmarkRunner();
@@ -24,8 +26,12 @@ export function BenchmarkView() {
     return <NoSessionFallback onBack={goBack} />;
   }
 
-  const algorithms = session.payloads.map((p) => p.algorithm);
-  const hasResults = results.size > 0;
+  const isFileMode = resultSource === 'file';
+  const algorithms = isFileMode
+    ? fileResults.map((r) => r.algorithm)
+    : session.payloads?.map((p) => p.algorithm) ?? [];
+
+  const hasResults = liveResults.size > 0 || fileResults.length > 0;
 
   return (
     <div className="flex flex-col h-full gap-6 overflow-auto p-6">
@@ -34,8 +40,9 @@ export function BenchmarkView() {
         status={status}
         currentAlgorithm={currentAlgorithm}
         progress={progress}
-        onStart={startBenchmark}
+        onStart={isFileMode ? undefined : startBenchmark}
         onBack={goBack}
+        isFileMode={isFileMode}
       />
 
       <BenchmarkStatusBanner
@@ -43,16 +50,28 @@ export function BenchmarkView() {
         currentAlgorithm={currentAlgorithm}
         progress={progress}
         error={error}
+        isFileMode={isFileMode}
       />
 
       {hasResults && (
         <div className="space-y-6">
-          {Array.from(results.entries()).map(([algorithm, result]) => (
-            <div key={algorithm} className="space-y-4">
-              <ResultSummaryCard results={result} />
-              <LogResultsSection results={result} />
-            </div>
-          ))}
+          {resultSource === 'file' &&
+            fileResults.map((exported, index) => (
+              <div key={index} className="space-y-4">
+                <ResultSummaryCard exported={exported} />
+                <LogResultsSection exported={exported} />
+              </div>
+            ))
+          }
+
+          {resultSource === 'live' &&
+            Array.from(liveResults.entries()).map(([algorithm, result]) => (
+              <div key={algorithm} className="space-y-4">
+                <ResultSummaryCard results={result} />
+                <LogResultsSection results={result} />
+              </div>
+            ))
+          }
         </div>
       )}
 

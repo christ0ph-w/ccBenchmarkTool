@@ -6,14 +6,15 @@ interface BenchmarkStatusBannerProps {
   currentAlgorithm: string;
   progress: { current: number; total: number };
   error: string;
+  isFileMode?: boolean;
 }
 
-export function BenchmarkStatusBanner({ status, currentAlgorithm, progress, error }: BenchmarkStatusBannerProps) {
+export function BenchmarkStatusBanner({ status, currentAlgorithm, progress, error, isFileMode }: BenchmarkStatusBannerProps) {
   if (status === 'idle' && !error) return null;
 
   return (
     <div className="space-y-3">
-      {status === 'running' && (
+      {status === 'running' && !isFileMode && (
         <div className="space-y-2">
           <div className="p-3 rounded-lg border bg-yellow-50 border-yellow-200 text-yellow-900">
             <p className="text-sm font-medium">
@@ -29,7 +30,7 @@ export function BenchmarkStatusBanner({ status, currentAlgorithm, progress, erro
         </div>
       )}
 
-      {status === 'completed' && (
+      {status === 'completed' && !isFileMode && (
         <div className="p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900">
           <p className="text-sm font-medium">
             Completed — {progress.total} algorithm{progress.total > 1 ? 's' : ''} finished

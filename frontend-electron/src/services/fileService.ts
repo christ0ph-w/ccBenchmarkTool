@@ -61,6 +61,17 @@ class FileService {
     }
     return await window.electronAPI.getDataDirectories();
   }
+
+  async readFile(filePath: string): Promise<string> {
+    if (!window.electronAPI?.readFile) {
+      throw new Error('Electron API not available');
+    }
+    const result = await window.electronAPI.readFile(filePath);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to read file');
+    }
+    return result.content!;
+  }
 }
 
 export const fileService = new FileService();

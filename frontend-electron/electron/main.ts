@@ -165,6 +165,20 @@ ipcMain.handle('delete-file', async (_event, filePath: string) => {
   }
 });
 
+ipcMain.handle('read-file', async (_event, filePath: string) => {
+  try {
+    const dataRoot = getDataRoot();
+    const fullPath = path.isAbsolute(filePath)
+      ? filePath
+      : path.resolve(dataRoot, filePath);
+
+    const content = await fs.promises.readFile(fullPath, 'utf-8');
+    return { success: true, content };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 // --- Window ---
 
 function createWindow() {

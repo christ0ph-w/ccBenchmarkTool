@@ -1,56 +1,117 @@
 import { Card } from '@/components/ui/card';
-import { BenchmarkResult } from '@/types/benchmarkTypes';
+import { BenchmarkResult, BenchmarkExportedResult } from '@/types/benchmarkTypes';
 
-interface ResultSummaryCardProps {
+interface LiveResultProps {
   results: BenchmarkResult;
+  exported?: never;
 }
 
-export function ResultSummaryCard({ results }: ResultSummaryCardProps) {
-  const totalTraces = results.logResults?.reduce((sum, l) => sum + l.total_traces, 0) ?? 0;
-  const totalVariants = results.logResults?.reduce((sum, l) => sum + l.total_variants, 0) ?? 0;
-  const successfulAlignments = results.logResults?.reduce((sum, l) => sum + l.successful_alignments, 0) ?? 0;
-  const failedAlignments = results.logResults?.reduce((sum, l) => sum + l.failed_alignments, 0) ?? 0;
+interface FileResultProps {
+  results?: never;
+  exported: BenchmarkExportedResult;
+}
+
+type ResultSummaryCardProps = LiveResultProps | FileResultProps;
+
+export function ResultSummaryCard(props: ResultSummaryCardProps) {
+  if (props.exported) {
+    return <ExportedSummary data={props.exported} />;
+  }
+  return <LiveSummary data={props.results} />;
+}
+
+function LiveSummary({ data }: { data: BenchmarkResult }) {
+  const totalTraces = data.logResults?.reduce((sum, l) => sum + l.total_traces, 0) ?? 0;
+  const totalVariants = data.logResults?.reduce((sum, l) => sum + l.total_variants, 0) ?? 0;
+  const successfulAlignments = data.logResults?.reduce((sum, l) => sum + l.successful_alignments, 0) ?? 0;
+  const failedAlignments = data.logResults?.reduce((sum, l) => sum + l.failed_alignments, 0) ?? 0;
 
   const avgFitness = successfulAlignments > 0
-    ? results.logResults.reduce((sum, l) => sum + l.avg_fitness * l.successful_alignments, 0) / successfulAlignments
+    ? data.logResults.reduce((sum, l) => sum + l.avg_fitness * l.successful_alignments, 0) / successfulAlignments
     : 0;
 
   const avgCost = successfulAlignments > 0
-    ? results.logResults.reduce((sum, l) => sum + l.avg_cost * l.successful_alignments, 0) / successfulAlignments
+    ? data.logResults.reduce((sum, l) => sum + l.avg_cost * l.successful_alignments, 0) / successfulAlignments
     : 0;
 
   return (
+    <SummaryLayout
+      algorithm={data.algorithm}
+      subtitle={`${data.numThreads} thread${data.numThreads > 1 ? 's' : ''}`}
+      stats={[
+        { label: 'Execution Time', value: formatTime(data.totalExecutionTimeMs) },
+        { label: 'Peak Memory', value: `${data.peakMemoryMb} MB` },
+        { label: 'Avg Fitness', value: formatPercent(avgFitness) },
+        { label: 'Avg Cost', value: avgCost.toFixed(4) },
+        { label: 'Total Traces', value: totalTraces.toString() },
+        { label: 'Total Variants', value: totalVariants.toString() },
+        { label: 'Successful', value: successfulAlignments.toString() },
+        { label: 'Failed', value: failedAlignments.toString(), highlight: failedAlignments > 0 },
+      ]}
+      ptalignConfig={data.ptalignConfig}
+    />
+  );
+}
+
+function ExportedSummary({ data }: { data: BenchmarkExportedResult }) {
+  const s = data.summary;
+
+  return (
+    <SummaryLayout
+      algorithm={data.algorithm}
+      subtitle={`${data.num_threads} thread${data.num_threads > 1 ? 's' : ''} · ${data.log_name} · ${data.timestamp}`}
+      stats={[
+        { label: 'Execution Time', value: formatTime(s.total_execution_time_ms) },
+        { label: 'Compute Time', value: formatTime(s.total_compute_time_ms) },
+        { label: 'Peak Memory', value: `${s.peak_memory_mb} MB` },
+        { label: 'Avg Fitness', value: formatPercent(s.avg_fitness) },
+        { label: 'Avg Cost', value: s.avg_cost.toFixed(4) },
+        { label: 'Total Traces', value: s.total_traces.toString() },
+        { label: 'Total Variants', value: s.total_variants.toString() },
+        { label: 'Logs Processed', value: s.total_logs_processed.toString() },
+        { label: 'Successful', value: s.successful_alignments.toString() },
+        { label: 'Failed', value: s.failed_alignments.toString(), highlight: s.failed_alignments > 0 },
+      ]}
+      ptalignConfig={data.ptalign_config}
+    />
+  );
+}
+
+interface StatItem {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}
+
+function SummaryLayout({ algorithm, subtitle, stats, ptalignConfig }: {
+  algorithm: string;
+  subtitle: string;
+  stats: StatItem[];
+  ptalignConfig?: Record<string, unknown>;
+}) {
+  return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Summary</h2>
-        <div className="text-sm text-muted-foreground">
-          {results.algorithm} · {results.numThreads} thread{results.numThreads > 1 ? 's' : ''}
-        </div>
+        <h2 className="text-xl font-bold">{algorithm}</h2>
+        <div className="text-sm text-muted-foreground">{subtitle}</div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Execution Time" value={formatTime(results.totalExecutionTimeMs)} />
-        <StatCard label="Peak Memory" value={`${results.peakMemoryMb} MB`} />
-        <StatCard label="Avg Fitness" value={formatPercent(avgFitness)} />
-        <StatCard label="Avg Cost" value={avgCost.toFixed(4)} />
-        <StatCard label="Total Traces" value={totalTraces.toString()} />
-        <StatCard label="Total Variants" value={totalVariants.toString()} />
-        <StatCard label="Successful" value={successfulAlignments.toString()} />
-        <StatCard label="Failed" value={failedAlignments.toString()} highlight={failedAlignments > 0} />
+        {stats.map((stat) => (
+          <StatCard key={stat.label} label={stat.label} value={stat.value} highlight={stat.highlight} />
+        ))}
       </div>
 
-      {results.ptalignConfig && (
-        <PtalignConfigDisplay config={results.ptalignConfig} />
-      )}
+      {ptalignConfig && <PtalignConfigDisplay config={ptalignConfig} />}
     </Card>
   );
 }
 
-function StatCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function StatCard({ label, value, highlight }: StatItem) {
   return (
-    <div className="bg-slate-50 p-3 rounded-lg">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={`text-lg font-bold ${highlight ? 'text-red-600' : 'text-slate-900'}`}>
+    <div className="bg-muted p-3 rounded-lg">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`text-lg font-bold ${highlight ? 'text-red-500' : 'text-foreground'}`}>
         {value}
       </p>
     </div>
@@ -63,8 +124,8 @@ function PtalignConfigDisplay({ config }: { config: Record<string, unknown> }) {
       <h4 className="text-sm font-medium mb-2">PTALIGN Configuration</h4>
       <div className="flex flex-wrap gap-2">
         {Object.entries(config).map(([key, value]) => (
-          <span key={key} className="text-xs bg-slate-100 px-2 py-1 rounded">
-            {key}: <span className="font-medium">{String(value)}</span>
+          <span key={key} className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded">
+            {key}: <span className="font-medium text-foreground">{String(value)}</span>
           </span>
         ))}
       </div>

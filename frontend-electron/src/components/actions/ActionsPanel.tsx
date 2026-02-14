@@ -1,12 +1,14 @@
 import { Button } from '@/components/ui/button';
-import { Play, FlaskConical, CheckCircle2, AlertCircle, Circle } from 'lucide-react';
+import { Play, FlaskConical, Eye, CheckCircle2, AlertCircle, Circle, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useFileStore } from '@/stores/fileStore';
 import { clusteringService } from '@/services/clusteringService';
 import { useMemo, useState } from 'react';
 import { BENCHMARK_ALGORITHMS } from '@/config/benchmarkAlgorithms';
+import { CLUSTERING_ALGORITHMS } from '@/config/clusteringAlgorithms';
 import type { BenchmarkPayload, BenchmarkSession } from '@/types/benchmarkTypes';
+import { useConsoleStore } from '@/stores/consoleStore';
 
 type StepStatus = 'ok' | 'warning' | 'idle';
 
@@ -22,7 +24,20 @@ export function ActionsPanel() {
   const { selectedFiles, workingDirectory } = useFileStore();
   const [clusteringStatus, setClusteringStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
 
-  const { pnmlFiles, ptmlFiles, eventLogs, directories } = useMemo(() => {
+  const { addLog } = useConsoleStore();
+
+  const log = (level: 'log' | 'warn' | 'error', component: string, message: string) => {
+    addLog({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      level,
+      source: 'renderer',
+      component,
+      message,
+    });
+  }
+
+  const { pnmlFiles, ptmlFiles, eventLogs, directories, jsonFiles } = useMemo(() => {
     return {
       pnmlFiles: selectedFiles.filter(
         (f) => f.type === 'file' && f.name.toLowerCase().endsWith('.pnml')
@@ -34,6 +49,9 @@ export function ActionsPanel() {
         (f) => f.type === 'file' && f.name.toLowerCase().endsWith('.xes')
       ),
       directories: selectedFiles.filter((f) => f.type === 'directory'),
+      jsonFiles: selectedFiles.filter(
+        (f) => f.type === 'file' && f.name.toLowerCase().endsWith('.json')
+      ),
     };
   }, [selectedFiles]);
 
@@ -119,20 +137,35 @@ export function ActionsPanel() {
     if (!canRunClustering) return;
 
     setClusteringStatus('running');
+    log('log', 'Clustering', `Starting ${clustering.algorithm} on ${eventLogs[0].name}...`);
+
     try {
-      await clusteringService.clusterFile({
+      const result = await clusteringService.clusterFile({
         file_path: eventLogs[0].path,
         clustering_algorithm: clustering.algorithm,
         algorithm_params: clustering.params,
       });
+
       setClusteringStatus('done');
-    } catch {
+      log('log', 'Clustering', `Complete: ${result.data?.num_clusters} clusters found`);
+
+      if (result.data?.cluster_sizes) {
+        log('log', 'Clustering', `Cluster sizes: ${JSON.stringify(result.data.cluster_sizes)}`);
+      }
+
+      if (result.data?.exported_files) {
+        log('log', 'Clustering', `Exported ${result.data.exported_files.length} cluster files`);
+      }
+    } catch (err) {
       setClusteringStatus('error');
+      log('error', 'Clustering', `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
   const handleRunBenchmark = () => {
     if (!canRunBenchmark) return;
+    log('log', 'Benchmark', `Starting benchmark with ${benchmarking.selectedAlgorithms.join(', ')}`);
+    log('log', 'Benchmark', `CPU Cores: ${benchmarking.coreCount}`);
 
     const logDir = directories.length > 0
       ? directories[0].path
@@ -168,15 +201,63 @@ export function ActionsPanel() {
     navigate('/benchmark', { state: session });
   };
 
+  const handleViewResults = () => {
+    if (jsonFiles.length === 0) return;
+
+    const filePaths = jsonFiles.map((f) => f.path);
+    navigate('/benchmark', {
+      state: { resultFiles: filePaths },
+    });
+  };
+
+  // Build settings summaries
+  const clusteringAlgoConfig = CLUSTERING_ALGORITHMS[clustering.algorithm];
+
+  const clusteringSettings = useMemo(() => {
+    const items: { label: string; value: string }[] = [];
+    items.push({ label: 'Algorithm', value: clusteringAlgoConfig?.name ?? clustering.algorithm });
+    if (clustering.params) {
+      Object.entries(clustering.params).forEach(([key, value]) => {
+        const paramConfig = clusteringAlgoConfig?.parameters?.find((p: any) => p.key === key);
+        if (paramConfig) {
+          items.push({ label: paramConfig.label, value: String(value) });
+        }
+      });
+    }
+    return items;
+  }, [clustering, clusteringAlgoConfig]);
+
+  const benchmarkSettings = useMemo(() => {
+    const items: { label: string; value: string }[] = [];
+
+    if (benchmarking.selectedAlgorithms.length > 0) {
+      items.push({ label: 'Algorithms', value: benchmarking.selectedAlgorithms.join(', ') });
+    }
+
+    items.push({ label: 'CPU Cores', value: String(benchmarking.coreCount) });
+
+    if (benchmarking.selectedAlgorithms.includes('PTALIGN') && Object.keys(benchmarking.params).length > 0) {
+      const ptalignConfig = BENCHMARK_ALGORITHMS['PTALIGN'];
+      ptalignConfig.parameters.forEach((param) => {
+        const value = benchmarking.params[param.key];
+        if (value !== undefined) {
+          items.push({ label: param.label, value: String(value) });
+        }
+      });
+    }
+    return items;
+  }, [benchmarking]);
+
   return (
     <div className="flex flex-col h-full border rounded-lg">
       <div className="p-3 border-b shrink-0">
         <h3 className="font-semibold">Actions</h3>
       </div>
 
-      <div className="p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <ActionSection title="Clustering">
           <StepList steps={clusteringSteps} />
+          <SettingsSummary items={clusteringSettings} />
           <Button
             onClick={handleRunClustering}
             disabled={!canRunClustering || clusteringStatus === 'running'}
@@ -189,6 +270,7 @@ export function ActionsPanel() {
 
         <ActionSection title="Benchmarking">
           <StepList steps={benchmarkSteps} />
+          <SettingsSummary items={benchmarkSettings} />
           <Button
             onClick={handleRunBenchmark}
             disabled={!canRunBenchmark}
@@ -199,6 +281,27 @@ export function ActionsPanel() {
             Run Benchmark
           </Button>
         </ActionSection>
+
+        {jsonFiles.length > 0 && (
+          <ActionSection title="Results">
+            <div className="space-y-1.5">
+              {jsonFiles.map((f) => (
+                <div key={f.path} className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                  <span className="text-slate-700 truncate">{f.name}</span>
+                </div>
+              ))}
+            </div>
+            <Button
+              onClick={handleViewResults}
+              className="w-full mt-3"
+              variant="outline"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              View Result{jsonFiles.length > 1 ? 's' : ''}
+            </Button>
+          </ActionSection>
+        )}
       </div>
     </div>
   );
@@ -207,7 +310,7 @@ export function ActionsPanel() {
 function ActionSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <h4 className="text-sm font-medium text-slate-700">{title}</h4>
+      <h4 className="text-sm font-medium text-muted-foreground">{title}</h4>
       {children}
     </div>
   );
@@ -219,7 +322,7 @@ function StepList({ steps }: { steps: ValidationStep[] }) {
       {steps.map((step) => (
         <div key={step.label} className="flex items-center gap-2 text-sm">
           <StatusIcon status={step.status} />
-          <span className={step.status === 'warning' ? 'text-amber-700' : 'text-slate-700'}>
+          <span className={step.status === 'warning' ? 'text-amber-700' : 'text-foreground'}>
             {step.label}
           </span>
           {step.detail && (
@@ -231,6 +334,29 @@ function StepList({ steps }: { steps: ValidationStep[] }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function SettingsSummary({ items }: { items: { label: string; value: string }[] }) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="mt-2 p-2 rounded bg-muted space-y-1">
+      <div className="flex items-center gap-1">
+        <Settings className="h-3 w-3 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">Current Settings</span>
+      </div>
+      <table className="w-full text-xs">
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.label}>
+              <td className="text-muted-foreground py-0.5 pr-4 whitespace-nowrap">{item.label}</td>
+              <td className="font-medium text-foreground py-0.5">{item.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

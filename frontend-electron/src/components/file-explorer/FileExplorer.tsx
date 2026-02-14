@@ -37,7 +37,7 @@ const updateNodeInTree = (
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   rootPath = '',
   onFileSelect,
-  allowedExtensions = ['.xes', '.pnml', '.ptml'],
+  allowedExtensions = ['.xes', '.pnml', '.ptml', '.json'],
 }) => {
   const [fileTree, setFileTree] = useState<FrontendFileItem[]>([]);
   const [loading, setLoading] = useState(false);
