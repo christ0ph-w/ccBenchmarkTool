@@ -3,9 +3,12 @@
 *.log
 .idea/
 .vscode/
+*.tmp
+*.temp
 
 # Data directories
 data/
+**/data/
 
 # Environment variables
 .env
@@ -14,8 +17,71 @@ data/
 
 # OS specific
 Thumbs.db
+desktop.ini
 
-# Python (catch-all)
+# ==========================================
+# Python (Backend - Flask)
+# ==========================================
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.pytest_cache/
+
+# Virtual environments
+venv/
+env/
+ENV/
+backend-flask/venv/
+
+# ==========================================
+# Node.js (Frontend - Electron)
+# ==========================================
+node_modules/
+frontend-electron/node_modules/
+
+# Build outputs
+frontend-electron/dist/
+frontend-electron/dist-ssr/
+frontend-electron/dist-electron/
+
+# Electron Builder outputs
+frontend-electron/release/
+frontend-electron/out/
+frontend-electron/build/
+
+# Electron installers and packages
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.tar.gz
+*.zip
+
+# Electron Builder metadata
+*.blockmap
+*.yaml
+*.yml
+!frontend-electron/electron-builder.json5
+!frontend-electron/docker-compose.yml
+builder-debug.yml
+builder-effective-config.yaml
+
+# Package manager locks (optional - your choice)
+# frontend-electron/package-lock.json
+# backend-flask/Pipfile.lock
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
