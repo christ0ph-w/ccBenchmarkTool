@@ -81,7 +81,7 @@ export const ConsolePanel: React.FC = () => {
 
   return (
     <div className="flex flex-col border rounded-lg h-full overflow-hidden">
-      <div className="flex items-center justify-between p-3 border-b flex-shrink-0">
+      <div className="flex items-center justify-between p-3 border-b shrink-0">
         <h3 className="font-semibold">Console</h3>
         <Button
           variant="outline"
