@@ -16,14 +16,14 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
-let currentWorkingDir: string | null;
+let currentWorkingDir: string | null = null;
 
 function getDataRoot(): string {
   const projectRoot = path.join(__dirname, '..', '..');
   return path.join(projectRoot, 'data');
 }
 
-function createWorkingDirectory(): string {
+function createTimestampedDirectory(): string {
   const dataRoot = getDataRoot();
 
   if (!fs.existsSync(dataRoot)) {
@@ -50,10 +50,28 @@ function createWorkingDirectory(): string {
 // --- IPC Handlers ---
 
 ipcMain.handle('get-working-directory', () => {
-  if (!currentWorkingDir) {
-    currentWorkingDir = createWorkingDirectory();
-  }
   return currentWorkingDir;
+});
+
+ipcMain.handle('set-working-directory', (_event, dirPath: string) => {
+  const dataRoot = getDataRoot();
+  const absolutePath = path.resolve(dataRoot, dirPath);
+
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Directory does not exist: ${dirPath}`);
+  }
+
+  if (!absolutePath.startsWith(dataRoot)) {
+    throw new Error('Directory must be within the data root');
+  }
+
+  currentWorkingDir = absolutePath;
+  return { success: true, path: currentWorkingDir };
+});
+
+ipcMain.handle('create-working-directory', () => {
+  currentWorkingDir = createTimestampedDirectory();
+  return { success: true, path: currentWorkingDir, name: path.basename(currentWorkingDir) };
 });
 
 ipcMain.handle('get-data-directories', () => {
@@ -113,16 +131,19 @@ ipcMain.handle('list-files', async (_event, targetPath: string) => {
 });
 
 ipcMain.handle('upload-file', async (_event, fileData: { name: string; data: number[]; type: string; size: number }) => {
+  if (!currentWorkingDir) {
+    throw new Error('No working directory set. Please select or create one first.');
+  }
+
   try {
-    const workingDir = currentWorkingDir || createWorkingDirectory();
-    const filePath = path.join(workingDir, fileData.name);
+    const filePath = path.join(currentWorkingDir, fileData.name);
     const buffer = Buffer.from(fileData.data);
     await fs.promises.writeFile(filePath, buffer);
 
     return {
       success: true,
       path: filePath,
-      directory: path.basename(workingDir),
+      directory: path.basename(currentWorkingDir),
       filename: fileData.name,
     };
   } catch (error) {
@@ -177,7 +198,5 @@ app.on('activate', () => {
 });
 
 app.whenReady().then(() => {
-  currentWorkingDir = createWorkingDirectory();
-  console.log('Working directory created:', currentWorkingDir);
   createWindow();
 });

@@ -1,5 +1,5 @@
 import { FrontendFileItem } from '@/types/fileTypes';
-import type { UploadResult, DeleteResult, UploadFileData } from '@/types/electron';
+import type { UploadResult, DeleteResult, UploadFileData, SetWorkingDirResult, CreateWorkingDirResult, DataDirectory } from '@/types/electron';
 
 class FileService {
   async listFiles(path: string = ''): Promise<FrontendFileItem[]> {
@@ -34,14 +34,28 @@ class FileService {
     return await window.electronAPI.deleteFile(filePath);
   }
 
-  async getWorkingDirectory(): Promise<string> {
+  async getWorkingDirectory(): Promise<string | null> {
     if (!window.electronAPI?.getWorkingDirectory) {
       throw new Error('Electron API not available');
     }
     return await window.electronAPI.getWorkingDirectory();
   }
 
-  async getDataDirectories(): Promise<Array<{ name: string; path: string }>> {
+  async setWorkingDirectory(dirPath: string): Promise<SetWorkingDirResult> {
+    if (!window.electronAPI?.setWorkingDirectory) {
+      throw new Error('Electron API not available');
+    }
+    return await window.electronAPI.setWorkingDirectory(dirPath);
+  }
+
+  async createWorkingDirectory(): Promise<CreateWorkingDirResult> {
+    if (!window.electronAPI?.createWorkingDirectory) {
+      throw new Error('Electron API not available');
+    }
+    return await window.electronAPI.createWorkingDirectory();
+  }
+
+  async getDataDirectories(): Promise<DataDirectory[]> {
     if (!window.electronAPI?.getDataDirectories) {
       throw new Error('Electron API not available');
     }

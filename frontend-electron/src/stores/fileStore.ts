@@ -4,12 +4,14 @@ import { FileItem } from '@/types/fileTypes';
 interface FileStore {
   selectedFiles: FileItem[];
   currentDirectory: string;
+  workingDirectory: string | null;
 
   setSelectedFiles: (files: FileItem[]) => void;
   addSelectedFile: (file: FileItem) => void;
   removeSelectedFile: (fileId: string) => void;
   clearSelectedFiles: () => void;
   setCurrentDirectory: (path: string) => void;
+  setWorkingDirectory: (path: string | null) => void;
 
   isFileSelected: (fileId: string) => boolean;
   getSelectedByType: (type: 'file' | 'directory') => FileItem[];
@@ -18,6 +20,7 @@ interface FileStore {
 export const useFileStore = create<FileStore>((set, get) => ({
   selectedFiles: [],
   currentDirectory: '/',
+  workingDirectory: null,
 
   setSelectedFiles: (files) => set({ selectedFiles: files }),
 
@@ -34,6 +37,8 @@ export const useFileStore = create<FileStore>((set, get) => ({
   clearSelectedFiles: () => set({ selectedFiles: [] }),
 
   setCurrentDirectory: (path) => set({ currentDirectory: path }),
+
+  setWorkingDirectory: (path) => set({ workingDirectory: path }),
 
   isFileSelected: (fileId) =>
     get().selectedFiles.some(f => f.id === fileId),

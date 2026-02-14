@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File system operations
   listFiles: (path: string) => ipcRenderer.invoke('list-files', path),
   getWorkingDirectory: () => ipcRenderer.invoke('get-working-directory'),
+  setWorkingDirectory: (dirPath: string) => ipcRenderer.invoke('set-working-directory', dirPath),
+  createWorkingDirectory: () => ipcRenderer.invoke('create-working-directory'),
   getDataDirectories: () => ipcRenderer.invoke('get-data-directories'),
   uploadFile: (fileData: any) => ipcRenderer.invoke('upload-file', fileData),
   deleteFile: (filePath: string) => ipcRenderer.invoke('delete-file', filePath),
