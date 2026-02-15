@@ -58,27 +58,27 @@ function LogResultItem({ name, log }: { name: string; log: LogBenchmarkResult })
           <span className="font-medium">{name}</span>
         </div>
         <div className="flex gap-4 text-sm text-muted-foreground">
-          <span>Fitness: {formatPercent(log.avg_fitness)}</span>
-          <span>Cost: {log.avg_cost.toFixed(4)}</span>
-          <span>{formatTime(log.execution_time_ms)}</span>
+          <span>Fitness: {formatPercent(log.avgFitness)}</span>
+          <span>Cost: {log.avgCost.toFixed(4)}</span>
+          <span>{formatTime(log.executionTimeMs)}</span>
         </div>
       </button>
 
       {expanded && (
         <div className="p-4 pt-0 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MiniStat label="Traces" value={log.total_traces.toString()} />
-            <MiniStat label="Variants" value={log.total_variants.toString()} />
-            <MiniStat label="Successful" value={log.successful_alignments.toString()} />
-            <MiniStat label="Failed" value={log.failed_alignments.toString()} />
-            <MiniStat label="Memory" value={`${log.memory_mb} MB`} />
-            <MiniStat label="Avg Fitness" value={formatPercent(log.avg_fitness)} />
-            <MiniStat label="Avg Cost" value={log.avg_cost.toFixed(4)} />
-            <MiniStat label="Time" value={formatTime(log.execution_time_ms)} />
+            <MiniStat label="Traces" value={log.totalTraces.toString()} />
+            <MiniStat label="Variants" value={log.totalVariants.toString()} />
+            <MiniStat label="Successful" value={log.successfulAlignments.toString()} />
+            <MiniStat label="Failed" value={log.failedAlignments.toString()} />
+            <MiniStat label="Memory" value={`${log.memoryUsedMb} MB`} />
+            <MiniStat label="Avg Fitness" value={formatPercent(log.avgFitness)} />
+            <MiniStat label="Avg Cost" value={log.avgCost.toFixed(4)} />
+            <MiniStat label="Time" value={formatTime(log.executionTimeMs)} />
           </div>
 
           {log.timing && <TimingDisplay timing={log.timing} />}
-          {log.optimization_stats && <OptimizationDisplay stats={log.optimization_stats} />}
+          {log.optimizationStats && <OptimizationDisplay stats={log.optimizationStats} />}
         </div>
       )}
     </div>
@@ -86,13 +86,13 @@ function LogResultItem({ name, log }: { name: string; log: LogBenchmarkResult })
 }
 
 function TimingDisplay({ timing }: { timing: TimingBreakdown }) {
-  const total = timing.total_ms || 1;
+  const total = timing.totalMs || 1;
 
   const segments = [
-    { label: 'Compute', ms: timing.compute_ms, color: 'bg-blue-500' },
-    { label: 'Parse', ms: timing.parse_ms ?? 0, color: 'bg-green-500' },
-    { label: 'Network', ms: timing.network_ms ?? 0, color: 'bg-yellow-500' },
-    { label: 'Overhead', ms: timing.overhead_ms, color: 'bg-slate-300' },
+    { label: 'Compute', ms: timing.computeMs, color: 'bg-blue-500' },
+    { label: 'Parse', ms: timing.parseMs ?? 0, color: 'bg-green-500' },
+    { label: 'Network', ms: timing.networkMs ?? 0, color: 'bg-yellow-500' },
+    { label: 'Overhead', ms: timing.overheadMs, color: 'bg-slate-300' },
   ].filter(s => s.ms > 0);
 
   return (
@@ -124,21 +124,21 @@ function TimingDisplay({ timing }: { timing: TimingBreakdown }) {
 }
 
 function OptimizationDisplay({ stats }: { stats: OptimizationStats }) {
-  const total = stats.full_alignments + stats.warm_start_alignments + stats.bounded_skips + stats.cached_alignments;
+  const total = stats.fullAlignments + stats.warmStartAlignments + stats.boundedSkips + stats.cachedAlignments;
 
   return (
     <div className="space-y-2">
       <h4 className="text-sm font-medium">Optimization Stats</h4>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MiniStat label="Full Alignments" value={stats.full_alignments.toString()} />
-        <MiniStat label="Warm Start" value={stats.warm_start_alignments.toString()} />
-        <MiniStat label="Bounded Skips" value={stats.bounded_skips.toString()} />
-        <MiniStat label="Cached" value={stats.cached_alignments.toString()} />
+        <MiniStat label="Full Alignments" value={stats.fullAlignments.toString()} />
+        <MiniStat label="Warm Start" value={stats.warmStartAlignments.toString()} />
+        <MiniStat label="Bounded Skips" value={stats.boundedSkips.toString()} />
+        <MiniStat label="Cached" value={stats.cachedAlignments.toString()} />
       </div>
       {total > 0 && (
         <p className="text-xs text-muted-foreground">
-          Optimization rate: {(stats.optimization_rate * 100).toFixed(1)}%
-          ({stats.warm_start_alignments + stats.bounded_skips + stats.cached_alignments}/{total} optimized)
+          Optimization rate: {(stats.optimizationRate * 100).toFixed(1)}%
+          ({stats.warmStartAlignments + stats.boundedSkips + stats.cachedAlignments}/{total} optimized)
         </p>
       )}
     </div>

@@ -1,60 +1,29 @@
 # API Reference
 
-## Base URL
+## Spring Boot API (Port 8080)
 
-```
-http://localhost:8080/api
-```
+Base URL: `http://localhost:8080/api`
 
----
+### Endpoints
 
-## Endpoints
-
-### List Available Algorithms
-
+#### List Algorithms
 ```http
 GET /benchmark/algorithms
 ```
 
-**Response:**
-```json
-[
-  {
-    "name": "ILP",
-    "description": "Integer Linear Programming alignment - optimal but slower",
-    "modelType": "PETRI_NET"
-  },
-  {
-    "name": "SPLITPOINT",
-    "description": "Split-point alignment - faster heuristic approach",
-    "modelType": "PETRI_NET"
-  },
-  {
-    "name": "PTALIGN",
-    "description": "Process Tree Alignment - Gurobi-based with warm start and bounds optimization",
-    "modelType": "PROCESS_TREE"
-  }
-]
-```
-
----
-
-### Start Benchmark (Async)
-
+#### Start Benchmark (Async)
 ```http
 POST /benchmark/run
-Content-Type: application/json
 ```
 
-**Request Body:**
+**Request:**
 ```json
 {
-  "pnmlModelPath": "20250915_data/Model.pnml",
-  "ptmlModelPath": "20250915_data/Model.ptml",
-  "logDirectory": "20250915_data/EventLog.xes",
+  "pnmlModelPath": "data/Model.pnml",
+  "ptmlModelPath": "data/Model.ptml",
+  "logDirectory": "data/EventLog.xes",
   "algorithm": "PTALIGN",
   "numThreads": 4,
-  
   "useBounds": true,
   "useWarmStart": true,
   "boundThreshold": 1.0,
@@ -63,47 +32,57 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `pnmlModelPath` | string | For ILP/SPLITPOINT | - | Path to Petri net model |
-| `ptmlModelPath` | string | For PTALIGN | - | Path to Process Tree model |
-| `logDirectory` | string | Yes | - | Path to XES file or directory |
-| `algorithm` | string | Yes | - | `ILP`, `SPLITPOINT`, or `PTALIGN` |
-| `numThreads` | integer | No | CPU cores | Number of parallel threads (max 16 for PTALIGN) |
-| `useBounds` | boolean | No | `true` | Enable bounds-based skipping (PTALIGN) |
-| `useWarmStart` | boolean | No | `true` | Enable warm start optimization (PTALIGN) |
-| `boundThreshold` | number | No | `1.0` | Gap threshold for bounded skip (PTALIGN) |
-| `boundedSkipStrategy` | string | No | `"upper"` | Cost estimation: `lower`, `midpoint`, `upper` |
-| `propagateCostsAcrossClusters` | boolean | No | `false` | Share costs across cluster files |
-
 **Response:**
 ```json
 {
   "benchmarkId": "a8129b9d-65cd-44c2-bcdd-21b14857cca5",
-  "statusUrl": "/api/benchmark/run/a8129b9d-65cd-44c2-bcdd-21b14857cca5"
+  "statusUrl": "/api/benchmark/run/a8129b9d-..."
+}
+```
+
+#### Get Results
+```http
+GET /benchmark/run/{benchmarkId}
+```
+
+#### Restart PTALIGN Servers
+```http
+POST /benchmark/restart-ptalign-servers
+```
+
+---
+
+## Flask Clustering API (Port 5000)
+
+Base URL: `http://localhost:5000/api`
+
+#### Cluster Traces
+```http
+POST /cluster/traces
+```
+
+**Request:**
+```json
+{
+  "file_path": "data/EventLog.xes",
+  "clustering_algorithm": "hierarchical",
+  "algorithm_params": {
+    "linkage": "average",
+    "n_clusters": 3
+  }
 }
 ```
 
 ---
 
-### Get Benchmark Results
+## Data Types
 
-```http
-GET /benchmark/run/{benchmarkId}
-```
+All types use **camelCase** consistently.
 
-**Response (Pending - 404):**
+### BenchmarkResult
 ```json
 {
-  "error": "Benchmark results not found or expired",
-  "benchmarkId": "a8129b9d-65cd-44c2-bcdd-21b14857cca5"
-}
-```
-
-**Response (Complete - 200):**
-```json
-{
-  "benchmarkId": "a8129b9d-65cd-44c2-bcdd-21b14857cca5",
+  "benchmarkId": "uuid",
   "modelFile": "Model.ptml",
   "algorithm": "PTALIGN",
   "numThreads": 4,
@@ -113,74 +92,12 @@ GET /benchmark/run/{benchmarkId}
   "peakMemoryMb": 512,
   "success": true,
   "errorMessage": null,
-  "ptalignConfig": {
-    "use_bounds": true,
-    "use_warm_start": true,
-    "bound_threshold": 1.0,
-    "bounded_skip_strategy": "upper",
-    "propagate_costs": false
-  },
-  "logResults": [ ... ]
+  "ptalignConfig": {},
+  "logResults": []
 }
 ```
-
----
-
-### Run Benchmark (Sync)
-
-```http
-POST /benchmark/run-sync
-Content-Type: application/json
-```
-
-Same request body as async. **Blocks until complete.**
-
-**Response:**
-```json
-{
-  "status": "success",
-  "benchmarkId": "a8129b9d-65cd-44c2-bcdd-21b14857cca5",
-  "algorithm": "PTALIGN",
-  "totalExecutionTimeMs": 45230,
-  "success": true,
-  "logsProcessed": 5
-}
-```
-
----
-
-### Restart PTALIGN Servers
-
-```http
-POST /benchmark/restart-ptalign-servers
-```
-
-Restarts Python alignment servers for clean measurement state. Use between benchmark runs for accurate timing comparisons.
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "PTALIGN servers restarted"
-}
-```
-
----
-
-### Get Comparative Results
-
-```http
-GET /benchmark/compare/{comparativeId}
-```
-
-Returns cached comparative benchmark results.
-
----
-
-## Data Types
 
 ### LogBenchmarkResult
-
 ```json
 {
   "logName": "EventLog_cluster_0.xes",
@@ -192,136 +109,115 @@ Returns cached comparative benchmark results.
   "avgCost": 2.12,
   "executionTimeMs": 8450,
   "memoryUsedMb": 128,
-  "timing": { ... },
-  "optimizationStats": { ... },
-  "alignments": [ ... ],
-  "boundsProgression": [ ... ],
-  "globalBoundsProgression": [ ... ]
+  "timing": {},
+  "optimizationStats": {},
+  "alignments": [],
+  "boundsProgression": [],
+  "globalBoundsProgression": []
 }
 ```
 
 ### TimingBreakdown
-
 ```json
 {
-  "total_ms": 8450,
-  "compute_ms": 7200,
-  "overhead_ms": 1250,
-  "parse_ms": 350,
-  "network_ms": 900,
+  "totalMs": 8450,
+  "computeMs": 7200,
+  "overheadMs": 1250,
+  "parseMs": 350,
+  "networkMs": 900,
   "efficiency": 0.852
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `total_ms` | Total wall-clock time |
-| `compute_ms` | Pure alignment computation time |
-| `overhead_ms` | I/O, parsing, network overhead |
-| `parse_ms` | XES file parsing time |
-| `network_ms` | HTTP round-trip time (PTALIGN only) |
-| `efficiency` | `compute_ms / total_ms` |
-
 ### OptimizationStats
-
 ```json
 {
-  "full_alignments": 5,
-  "warm_start_alignments": 32,
-  "bounded_skips": 8,
-  "cached_alignments": 0,
-  "optimization_rate": 0.889
+  "fullAlignments": 5,
+  "warmStartAlignments": 32,
+  "boundedSkips": 8,
+  "cachedAlignments": 0,
+  "optimizationRate": 0.889
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `full_alignments` | Computed from scratch |
-| `warm_start_alignments` | Used reference solution as starting point |
-| `bounded_skips` | Skipped due to tight bounds |
-| `cached_alignments` | Reused from prior cluster |
-| `optimization_rate` | Fraction that avoided full computation |
-
 ### TraceAlignmentDetail
-
 ```json
 {
-  "variant_name": ["Activity_A", "Activity_B", "Activity_C"],
-  "alignment_cost": 2.0,
+  "variantName": ["Activity_A", "Activity_B"],
+  "alignmentCost": 2.0,
   "fitness": 0.9523,
-  "trace_length": 12,
-  "trace_count": 15,
-  "alignment_time_ms": 145,
-  "states_explored": 0,
-  "method": "warm_start",
-  "lower_bound": 1.8,
-  "upper_bound": 2.2,
+  "traceLength": 12,
+  "traceCount": 15,
+  "alignmentTimeMs": 145,
+  "statesExplored": 0,
+  "method": "warmStart",
+  "lowerBound": 1.8,
+  "upperBound": 2.2,
   "confidence": 1.0
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `variant_name` | List of activities in the trace variant |
-| `alignment_cost` | Total cost (log moves + model moves) |
-| `fitness` | `1 - (cost / (trace_length + cost))` |
-| `trace_length` | Number of events in trace |
-| `trace_count` | Number of traces with this variant |
-| `alignment_time_ms` | Time to compute this alignment |
-| `states_explored` | Search states explored (ILP/SPLITPOINT) |
-| `method` | `full`, `warm_start`, `bounded_skip`, `cached` |
-| `lower_bound` | Computed lower bound on cost |
-| `upper_bound` | Computed upper bound on cost |
-| `confidence` | 1.0 for exact, lower for estimated |
-
 ### BoundsProgressionEntry
-
 ```json
 {
-  "variant_index": 5,
-  "num_references": 3,
-  "lower_bound": 1.8,
-  "upper_bound": 2.5,
+  "variantIndex": 5,
+  "numReferences": 3,
+  "lowerBound": 1.8,
+  "upperBound": 2.5,
   "gap": 0.7,
-  "estimated_cost": null,
-  "actual_cost": 2.1,
-  "method": "warm_start"
+  "estimatedCost": null,
+  "actualCost": 2.1,
+  "method": "warmStart"
 }
 ```
-
-Tracks how bounds tighten as reference alignments accumulate.
 
 ### GlobalBoundsSnapshot
-
 ```json
 {
-  "num_references": 3,
-  "num_remaining": 42,
-  "mean_lower_bound": 1.5,
-  "mean_upper_bound": 4.2,
-  "mean_gap": 2.7,
-  "min_gap": 0.3,
-  "max_gap": 5.8,
-  "num_skippable": 8
+  "numReferences": 3,
+  "numRemaining": 42,
+  "meanLowerBound": 1.5,
+  "meanUpperBound": 4.2,
+  "meanGap": 2.7,
+  "minGap": 0.3,
+  "maxGap": 5.8,
+  "numSkippable": 8
 }
 ```
-
-Snapshot of bounds across all remaining variants at a point in time. Used for convergence visualization.
 
 ---
 
-## Error Responses
+## Exported JSON Structure
 
-All endpoints may return:
+Files saved to `data/results/benchmark_{id}_{algo}_{model}_{log}.json`:
 
 ```json
 {
-  "status": "error",
-  "message": "Description of what went wrong"
+  "benchmarkId": "a8129b9d",
+  "algorithm": "PTALIGN",
+  "modelFile": "Model.ptml",
+  "logName": "EventLog",
+  "numThreads": 4,
+  "timestamp": "20260215_145300",
+  "summary": {
+    "avgFitness": 0.9234,
+    "avgCost": 2.45,
+    "successfulAlignments": 846,
+    "failedAlignments": 0,
+    "totalTraces": 1050,
+    "totalVariants": 215,
+    "totalLogsProcessed": 5,
+    "totalExecutionTimeMs": 45230,
+    "totalComputeTimeMs": 38500,
+    "peakMemoryMb": 512
+  },
+  "ptalignConfig": {
+    "useBounds": true,
+    "useWarmStart": true,
+    "boundThreshold": 1.0,
+    "boundedSkipStrategy": "upper",
+    "propagateCosts": false
+  },
+  "logs": {}
 }
 ```
-
-HTTP status codes:
-- `200` - Success
-- `404` - Resource not found (benchmark pending or expired)
-- `500` - Server error

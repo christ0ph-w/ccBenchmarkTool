@@ -15,34 +15,13 @@ interface FileExplorerProps {
   allowedExtensions?: string[];
 }
 
-const updateNodeInTree = (
-  tree: FrontendFileItem[],
-  path: string,
-  updateFn: (node: FrontendFileItem) => FrontendFileItem
-): FrontendFileItem[] => {
-  return tree.map(node => {
-    if (node.path === path) {
-      return updateFn(node);
-    }
-    if (node.children && node.children.length > 0) {
-      return {
-        ...node,
-        children: updateNodeInTree(node.children, path, updateFn),
-      };
-    }
-    return node;
-  });
-};
-
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   rootPath = '',
   onFileSelect,
   allowedExtensions = ['.xes', '.pnml', '.ptml', '.json'],
 }) => {
-  const [fileTree, setFileTree] = useState<FrontendFileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
   const {
     addSelectedFile,
@@ -51,6 +30,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     selectedFiles,
     workingDirectory,
     setWorkingDirectory,
+    expandedFolders,
+    toggleFolder,
+    fileTree,
+    setFileTree,
+    updateFileTree,
+    removeFromFileTree,
   } = useFileStore();
 
   const selectedTopLevelDir = selectedFiles.find(
@@ -66,6 +51,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }
 
   useEffect(() => {
+    // Only load if tree is empty
+    if (fileTree.length > 0) return;
+
     const loadInitialState = async () => {
       setLoading(true);
       try {
@@ -91,13 +79,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     };
 
     loadInitialState();
-  }, []);
+  }, [fileTree.length, setFileTree, setWorkingDirectory]);
 
   const handleRefresh = async () => {
     setLoading(true);
     try {
       const rootFiles = await fileService.listFiles(rootPath);
-
       const processedRootFiles = rootFiles.map(file => ({
         ...file,
         children: file.type === 'directory' ? [] : undefined,
@@ -105,7 +92,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       }));
 
       setFileTree(processedRootFiles);
-      setExpandedFolders(new Set());
     } catch (err) {
       setError('Failed to refresh files');
     } finally {
@@ -172,31 +158,24 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     const folderPath = folder.path;
 
     if (expandedFolders.has(folderPath)) {
-      setExpandedFolders(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(folderPath);
-        return newSet;
-      });
+      toggleFolder(folderPath);
     } else {
       setLoading(true);
       try {
         const childFiles = await fileService.listFiles(folderPath);
-
         const processedChildren = childFiles.map(child => ({
           ...child,
           children: child.type === 'directory' ? [] : undefined,
           isExpanded: false,
         }));
 
-        setFileTree(prevTree =>
-          updateNodeInTree(prevTree, folderPath, node => ({
-            ...node,
-            children: processedChildren,
-            isExpanded: true,
-          }))
-        );
+        updateFileTree(folderPath, node => ({
+          ...node,
+          children: processedChildren,
+          isExpanded: true,
+        }));
 
-        setExpandedFolders(prev => new Set(prev).add(folderPath));
+        toggleFolder(folderPath);
       } catch (err) {
         setError('Failed to load directory contents');
       } finally {
@@ -223,16 +202,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     setLoading(true);
     try {
       await fileService.deleteFile(file.path);
-
-      setFileTree(prevTree => {
-        const removeItemFromTree = (items: FrontendFileItem[]): FrontendFileItem[] => {
-          return items.filter(item => item.path !== file.path).map(item => ({
-            ...item,
-            children: item.children ? removeItemFromTree(item.children) : item.children,
-          }));
-        };
-        return removeItemFromTree(prevTree);
-      });
+      removeFromFileTree(file.path);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Delete failed';
       setError(errorMessage);

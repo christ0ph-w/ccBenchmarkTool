@@ -21,17 +21,17 @@ export function ResultSummaryCard(props: ResultSummaryCardProps) {
 }
 
 function LiveSummary({ data }: { data: BenchmarkResult }) {
-  const totalTraces = data.logResults?.reduce((sum, l) => sum + l.total_traces, 0) ?? 0;
-  const totalVariants = data.logResults?.reduce((sum, l) => sum + l.total_variants, 0) ?? 0;
-  const successfulAlignments = data.logResults?.reduce((sum, l) => sum + l.successful_alignments, 0) ?? 0;
-  const failedAlignments = data.logResults?.reduce((sum, l) => sum + l.failed_alignments, 0) ?? 0;
+  const totalTraces = data.logResults?.reduce((sum, l) => sum + l.totalTraces, 0) ?? 0;
+  const totalVariants = data.logResults?.reduce((sum, l) => sum + l.totalVariants, 0) ?? 0;
+  const successfulAlignments = data.logResults?.reduce((sum, l) => sum + l.successfulAlignments, 0) ?? 0;
+  const failedAlignments = data.logResults?.reduce((sum, l) => sum + l.failedAlignments, 0) ?? 0;
 
   const avgFitness = successfulAlignments > 0
-    ? data.logResults.reduce((sum, l) => sum + l.avg_fitness * l.successful_alignments, 0) / successfulAlignments
+    ? data.logResults.reduce((sum, l) => sum + l.avgFitness * l.successfulAlignments, 0) / successfulAlignments
     : 0;
 
   const avgCost = successfulAlignments > 0
-    ? data.logResults.reduce((sum, l) => sum + l.avg_cost * l.successful_alignments, 0) / successfulAlignments
+    ? data.logResults.reduce((sum, l) => sum + l.avgCost * l.successfulAlignments, 0) / successfulAlignments
     : 0;
 
   return (
@@ -59,20 +59,20 @@ function ExportedSummary({ data }: { data: BenchmarkExportedResult }) {
   return (
     <SummaryLayout
       algorithm={data.algorithm}
-      subtitle={`${data.num_threads} thread${data.num_threads > 1 ? 's' : ''} · ${data.log_name} · ${data.timestamp}`}
+      subtitle={`${data.numThreads} thread${data.numThreads > 1 ? 's' : ''} · ${data.logName} · ${data.timestamp}`}
       stats={[
-        { label: 'Execution Time', value: formatTime(s.total_execution_time_ms) },
-        { label: 'Compute Time', value: formatTime(s.total_compute_time_ms) },
-        { label: 'Peak Memory', value: `${s.peak_memory_mb} MB` },
-        { label: 'Avg Fitness', value: formatPercent(s.avg_fitness) },
-        { label: 'Avg Cost', value: s.avg_cost.toFixed(4) },
-        { label: 'Total Traces', value: s.total_traces.toString() },
-        { label: 'Total Variants', value: s.total_variants.toString() },
-        { label: 'Logs Processed', value: s.total_logs_processed.toString() },
-        { label: 'Successful', value: s.successful_alignments.toString() },
-        { label: 'Failed', value: s.failed_alignments.toString(), highlight: s.failed_alignments > 0 },
+        { label: 'Execution Time', value: formatTime(s.totalExecutionTimeMs) },
+        { label: 'Compute Time', value: formatTime(s.totalComputeTimeMs) },
+        { label: 'Peak Memory', value: `${s.peakMemoryMb} MB` },
+        { label: 'Avg Fitness', value: formatPercent(s.avgFitness) },
+        { label: 'Avg Cost', value: s.avgCost.toFixed(4) },
+        { label: 'Total Traces', value: s.totalTraces.toString() },
+        { label: 'Total Variants', value: s.totalVariants.toString() },
+        { label: 'Logs Processed', value: s.totalLogsProcessed.toString() },
+        { label: 'Successful', value: s.successfulAlignments.toString() },
+        { label: 'Failed', value: s.failedAlignments.toString(), highlight: s.failedAlignments > 0 },
       ]}
-      ptalignConfig={data.ptalign_config}
+      ptalignConfig={data.ptalignConfig}
     />
   );
 }

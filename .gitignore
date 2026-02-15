@@ -95,3 +95,5 @@ gurobi.lic
 
 # Test/benchmark results
 **/results/*.json
+
+CONTEXT.md

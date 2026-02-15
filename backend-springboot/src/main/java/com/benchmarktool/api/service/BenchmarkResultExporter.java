@@ -41,7 +41,6 @@ public class BenchmarkResultExporter {
                 ? result.getBenchmarkId().substring(0, 8) 
                 : "unknown";
 
-            // New naming: benchmark_{shortId}_{algorithm}_{model}_{log}.json
             String filename = String.format("benchmark_%s_%s_%s_%s.json", 
                 shortId, algorithm, modelName, logName);
             
@@ -82,15 +81,15 @@ public class BenchmarkResultExporter {
     private ObjectNode buildResultJson(BenchmarkResult result, String algorithm, String modelFile, String logName) {
         ObjectNode root = objectMapper.createObjectNode();
 
-        // Add benchmark_id to JSON output
+        // Add benchmarkId to JSON output
         if (result.getBenchmarkId() != null) {
-            root.put("benchmark_id", result.getBenchmarkId());
+            root.put("benchmarkId", result.getBenchmarkId());
         }
         
         root.put("algorithm", algorithm);
-        root.put("model_file", modelFile);
-        root.put("log_name", logName);
-        root.put("num_threads", result.getNumThreads());
+        root.put("modelFile", modelFile);
+        root.put("logName", logName);
+        root.put("numThreads", result.getNumThreads());
         root.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")));
 
         // Summary section
@@ -119,16 +118,16 @@ public class BenchmarkResultExporter {
                 }
             }
 
-            summary.put("avg_fitness", totalSuccessful > 0 ? totalFitness / totalSuccessful : 0);
-            summary.put("avg_cost", totalSuccessful > 0 ? totalCost / totalSuccessful : 0);
-            summary.put("successful_alignments", totalSuccessful);
-            summary.put("failed_alignments", totalFailed);
-            summary.put("total_traces", totalTraces);
-            summary.put("total_variants", totalVariants);
-            summary.put("total_logs_processed", logResults.size());
-            summary.put("total_execution_time_ms", result.getTotalExecutionTimeMs());
-            summary.put("total_compute_time_ms", totalComputeMs);
-            summary.put("peak_memory_mb", result.getPeakMemoryMb());
+            summary.put("avgFitness", totalSuccessful > 0 ? totalFitness / totalSuccessful : 0);
+            summary.put("avgCost", totalSuccessful > 0 ? totalCost / totalSuccessful : 0);
+            summary.put("successfulAlignments", totalSuccessful);
+            summary.put("failedAlignments", totalFailed);
+            summary.put("totalTraces", totalTraces);
+            summary.put("totalVariants", totalVariants);
+            summary.put("totalLogsProcessed", logResults.size());
+            summary.put("totalExecutionTimeMs", result.getTotalExecutionTimeMs());
+            summary.put("totalComputeTimeMs", totalComputeMs);
+            summary.put("peakMemoryMb", result.getPeakMemoryMb());
         }
 
         root.set("summary", summary);
@@ -147,7 +146,7 @@ public class BenchmarkResultExporter {
                     configNode.put(key, value.toString());
                 }
             });
-            root.set("ptalign_config", configNode);
+            root.set("ptalignConfig", configNode);
         }
 
         // Logs section
@@ -170,27 +169,27 @@ public class BenchmarkResultExporter {
         ObjectNode logNode = objectMapper.createObjectNode();
 
         // Log metadata
-        logNode.put("total_traces", logResult.getTotalTraces());
-        logNode.put("total_variants", logResult.getTotalVariants());
-        logNode.put("successful_alignments", logResult.getSuccessfulAlignments());
-        logNode.put("failed_alignments", logResult.getFailedAlignments());
-        logNode.put("avg_fitness", logResult.getAvgFitness());
-        logNode.put("avg_cost", logResult.getAvgCost());
-        logNode.put("execution_time_ms", logResult.getExecutionTimeMs());
-        logNode.put("memory_mb", logResult.getMemoryUsedMb());
+        logNode.put("totalTraces", logResult.getTotalTraces());
+        logNode.put("totalVariants", logResult.getTotalVariants());
+        logNode.put("successfulAlignments", logResult.getSuccessfulAlignments());
+        logNode.put("failedAlignments", logResult.getFailedAlignments());
+        logNode.put("avgFitness", logResult.getAvgFitness());
+        logNode.put("avgCost", logResult.getAvgCost());
+        logNode.put("executionTimeMs", logResult.getExecutionTimeMs());
+        logNode.put("memoryUsedMb", logResult.getMemoryUsedMb());
 
         // Timing breakdown
         if (logResult.getTiming() != null) {
             ObjectNode timingNode = objectMapper.createObjectNode();
             TimingBreakdown timing = logResult.getTiming();
-            timingNode.put("total_ms", timing.getTotalMs());
-            timingNode.put("compute_ms", timing.getComputeMs());
-            timingNode.put("overhead_ms", timing.getOverheadMs());
+            timingNode.put("totalMs", timing.getTotalMs());
+            timingNode.put("computeMs", timing.getComputeMs());
+            timingNode.put("overheadMs", timing.getOverheadMs());
             if (timing.getParseMs() != null) {
-                timingNode.put("parse_ms", timing.getParseMs());
+                timingNode.put("parseMs", timing.getParseMs());
             }
             if (timing.getNetworkMs() != null) {
-                timingNode.put("network_ms", timing.getNetworkMs());
+                timingNode.put("networkMs", timing.getNetworkMs());
             }
             timingNode.put("efficiency", timing.getEfficiency());
             logNode.set("timing", timingNode);
@@ -200,12 +199,12 @@ public class BenchmarkResultExporter {
         if (logResult.getOptimizationStats() != null) {
             ObjectNode statsNode = objectMapper.createObjectNode();
             AlignmentResult.OptimizationStats stats = logResult.getOptimizationStats();
-            statsNode.put("full_alignments", stats.getFullAlignments());
-            statsNode.put("warm_start_alignments", stats.getWarmStartAlignments());
-            statsNode.put("bounded_skips", stats.getBoundedSkips());
-            statsNode.put("cached_alignments", stats.getCachedAlignments());
-            statsNode.put("optimization_rate", stats.getOptimizationRate());
-            logNode.set("optimization_stats", statsNode);
+            statsNode.put("fullAlignments", stats.getFullAlignments());
+            statsNode.put("warmStartAlignments", stats.getWarmStartAlignments());
+            statsNode.put("boundedSkips", stats.getBoundedSkips());
+            statsNode.put("cachedAlignments", stats.getCachedAlignments());
+            statsNode.put("optimizationRate", stats.getOptimizationRate());
+            logNode.set("optimizationStats", statsNode);
         }
 
         // Alignments
@@ -225,7 +224,7 @@ public class BenchmarkResultExporter {
                 ObjectNode entryNode = buildBoundsProgressionNode(entry);
                 progressionArray.add(entryNode);
             }
-            logNode.set("bounds_progression", progressionArray);
+            logNode.set("boundsProgression", progressionArray);
         }
 
         // Global bounds progression (for convergence visualization)
@@ -235,7 +234,7 @@ public class BenchmarkResultExporter {
                 ObjectNode snapshotNode = buildGlobalBoundsSnapshotNode(snapshot);
                 globalProgressionArray.add(snapshotNode);
             }
-            logNode.set("global_bounds_progression", globalProgressionArray);
+            logNode.set("globalBoundsProgression", globalProgressionArray);
         }
 
         return logNode;
@@ -251,23 +250,23 @@ public class BenchmarkResultExporter {
                 variantArray.add(activity);
             }
         }
-        alignmentNode.set("variant_name", variantArray);
+        alignmentNode.set("variantName", variantArray);
 
         // Core metrics
-        alignmentNode.put("alignment_cost", alignment.getAlignmentCost());
+        alignmentNode.put("alignmentCost", alignment.getAlignmentCost());
         alignmentNode.put("fitness", alignment.getFitness());
-        alignmentNode.put("trace_length", alignment.getTraceLength());
-        alignmentNode.put("trace_count", alignment.getTraceCount());
+        alignmentNode.put("traceLength", alignment.getTraceLength());
+        alignmentNode.put("traceCount", alignment.getTraceCount());
 
         // Timing and method
-        alignmentNode.put("alignment_time_ms", alignment.getAlignmentTimeMs());
-        alignmentNode.put("states_explored", alignment.getStatesExplored());
+        alignmentNode.put("alignmentTimeMs", alignment.getAlignmentTimeMs());
+        alignmentNode.put("statesExplored", alignment.getStatesExplored());
         alignmentNode.put("method", alignment.getMethod().name().toLowerCase());
 
         // Bounds info
-        alignmentNode.put("lower_bound", alignment.getLowerBound());
+        alignmentNode.put("lowerBound", alignment.getLowerBound());
         if (alignment.getUpperBound() < Double.MAX_VALUE) {
-            alignmentNode.put("upper_bound", alignment.getUpperBound());
+            alignmentNode.put("upperBound", alignment.getUpperBound());
         }
         alignmentNode.put("confidence", alignment.getConfidence());
 
@@ -277,12 +276,12 @@ public class BenchmarkResultExporter {
     private ObjectNode buildBoundsProgressionNode(AlignmentResult.BoundsProgressionEntry entry) {
         ObjectNode entryNode = objectMapper.createObjectNode();
 
-        entryNode.put("variant_index", entry.getVariantIndex());
-        entryNode.put("num_references", entry.getNumReferences());
-        entryNode.put("lower_bound", entry.getLowerBound());
+        entryNode.put("variantIndex", entry.getVariantIndex());
+        entryNode.put("numReferences", entry.getNumReferences());
+        entryNode.put("lowerBound", entry.getLowerBound());
 
         if (entry.getUpperBound() != null) {
-            entryNode.put("upper_bound", entry.getUpperBound());
+            entryNode.put("upperBound", entry.getUpperBound());
         }
 
         if (entry.getGap() != null) {
@@ -290,11 +289,11 @@ public class BenchmarkResultExporter {
         }
 
         if (entry.getEstimatedCost() != null) {
-            entryNode.put("estimated_cost", entry.getEstimatedCost());
+            entryNode.put("estimatedCost", entry.getEstimatedCost());
         }
 
         if (entry.getActualCost() != null) {
-            entryNode.put("actual_cost", entry.getActualCost());
+            entryNode.put("actualCost", entry.getActualCost());
         }
 
         entryNode.put("method", entry.getMethod());
@@ -304,14 +303,14 @@ public class BenchmarkResultExporter {
 
     private ObjectNode buildGlobalBoundsSnapshotNode(AlignmentResult.GlobalBoundsSnapshot snapshot) {
         ObjectNode node = objectMapper.createObjectNode();
-        node.put("num_references", snapshot.getNumReferences());
-        node.put("num_remaining", snapshot.getNumRemaining());
-        node.put("mean_lower_bound", snapshot.getMeanLowerBound());
-        node.put("mean_upper_bound", snapshot.getMeanUpperBound());
-        node.put("mean_gap", snapshot.getMeanGap());
-        node.put("min_gap", snapshot.getMinGap());
-        node.put("max_gap", snapshot.getMaxGap());
-        node.put("num_skippable", snapshot.getNumSkippable());
+        node.put("numReferences", snapshot.getNumReferences());
+        node.put("numRemaining", snapshot.getNumRemaining());
+        node.put("meanLowerBound", snapshot.getMeanLowerBound());
+        node.put("meanUpperBound", snapshot.getMeanUpperBound());
+        node.put("meanGap", snapshot.getMeanGap());
+        node.put("minGap", snapshot.getMinGap());
+        node.put("maxGap", snapshot.getMaxGap());
+        node.put("numSkippable", snapshot.getNumSkippable());
         return node;
     }
 }
