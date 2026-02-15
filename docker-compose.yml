@@ -8,20 +8,36 @@ services:
       - "5000:5000"
     environment:
       - FLASK_ENV=development
-      - FLASK_DEBUG=True
     volumes:
-      - ./backend-flask:/app
+      - ./data:/app/data
     networks:
       - app-network
 
-  # Uncomment when ready to add other services
-  # springboot-backend:
-  #   build: ./backend-springboot
-  #   container_name: springboot-api
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - app-network
+  springboot-backend:
+    build: ./backend-springboot
+    container_name: springboot-api
+    ports:
+      - "8080:8080"
+    environment:
+      - BENCHMARK_DATA_DIRECTORY=/data
+    volumes:
+      - ./data:/data
+    networks:
+      - app-network
+
+  alignment-server:
+    build: ./backend-alignment
+    container_name: alignment-api
+    ports:
+      - "5001:5001"
+    environment:
+      - WLSACCESSID=${GUROBI_WLSACCESSID}
+      - WLSSECRET=${GUROBI_WLSSECRET}
+      - LICENSEID=${GUROBI_LICENSEID}
+    volumes:
+      - ./data:/data
+    networks:
+      - app-network
 
 networks:
   app-network:

@@ -3,6 +3,7 @@
 *.log
 .idea/
 .vscode/
+*.iml
 *.tmp
 *.temp
 
@@ -75,7 +76,7 @@ frontend-electron/build/
 builder-debug.yml
 builder-effective-config.yaml
 
-# Package manager locks (optional - your choice)
+# Package manager locks
 # frontend-electron/package-lock.json
 # backend-flask/Pipfile.lock
 
@@ -85,3 +86,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Gurobi license file
+gurobi.lic
+
+# Docker
+.docker/
+
+# Test/benchmark results
+**/results/*.json

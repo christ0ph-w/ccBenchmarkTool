@@ -1,0 +1,82 @@
+# === Build outputs ===
+.gradle/
+build/
+bin/
+out/
+target/
+
+# Keep gradle wrapper jar
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# === IDE ===
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse / STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Logs ===
+*.log
+logs/
+
+# === Runtime data ===
+*.pid
+*.seed
+
+# === Temp files ===
+*.tmp
+*.swp
+*~
+
+# === Sensitive / Local config ===
+application-local.properties
+application-local.yml
+.env
+
+# === Large files that should never be committed ===
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# === Native libraries (commit these explicitly if needed) ===
+# Uncomment if you want to exclude them:
+# lib/*.dll
+# lib/*.so
+# lib/*.dylib
+
+# Gurobi license
+gurobi.lic

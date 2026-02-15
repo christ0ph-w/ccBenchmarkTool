@@ -1,0 +1,103 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.5.10'
+	id 'io.spring.dependency-management' version '1.1.7'
+	//Ivy plugin for dependency resolution of ProM
+    id 'ivy-publish'
+}
+
+group = 'com.benchmarktool'
+version = '0.0.1-SNAPSHOT'
+description = 'Benchmark project for Spring Boot'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+springBoot {
+    mainClass = 'com.benchmarktool.api.BenchmarkApplication'
+}
+
+repositories {
+	mavenCentral()
+
+	//Ivy configuration - example from "programmatic-alignments-master" - minimum working example
+    ivy {
+        url = uri("https://github.com/promworkbench/")
+        patternLayout {
+            artifact("[module]/raw/main/latestrelease/[artifact].[ext]")
+            ivy("[module]/raw/main/latestrelease/ivy.xml")
+        }
+    }
+
+    ivy {
+        url = uri("https://github.com/promworkbench/Releases/raw/main/Libraries/")
+        patternLayout {
+            artifact("[module]/[revision]/[artifact]-[revision].[ext]")
+            artifact("[module]/[revision]/[artifact]_[revision].[ext]")
+            ivy("[module]/[revision]/ivy.xml")
+        }
+    }
+
+    ivy {
+        url = uri("https://github.com/promworkbench/Releases/raw/main/Packages/")
+        patternLayout {
+            artifact("[module]/[revision]/[artifact]-[revision].[ext]")
+            ivy("[module]/[revision]/ivy.xml")
+        }
+    }
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Logging
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+    
+    // ProM dependencies - from "programmatic-alignments-master" - minimum working example
+    implementation(group: "prom", name: "ProM-Framework", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    implementation(group: "prom", name: "ProM-Plugins", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    implementation(group: "prom", name: "ProM-Contexts", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    implementation(group: "prom", name: "XESLite", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    implementation(group: "prom", name: "OpenXES", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    implementation(group: "prom", name: "PetriNets", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    implementation(group: "prom", name: "Alignment", version: "latest") {
+        exclude(group: "log4j", module: "log4j")
+    }
+    
+    // Other dependencies
+    implementation 'net.sourceforge.argparse4j:argparse4j:0.9.0'
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+}
+
+bootRun {
+    systemProperty "java.library.path", file("${projectDir}/lib").absolutePath
+    jvmArgs = [
+        "-Djava.library.path=${file("${projectDir}/lib").absolutePath}",
+        "-Xmx24g",  // Increased memory for ProM
+        "-Xms12g"
+    ]
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
