@@ -21,12 +21,14 @@ public class PythonServerManager {
     private static final Logger logger = LogManager.getLogger(PythonServerManager.class);
     
     private static final int BASE_PORT = 5001;
+    private static final int MAX_SERVERS = 50;
     private static final String SERVER_HOST = "http://localhost";
     
     private final ConcurrentHashMap<Integer, Process> runningServers = new ConcurrentHashMap<>();
     private final HttpClient httpClient;
     private final String pythonExecutablePath;
     private final String pythonScriptPath;
+    private final boolean isDocker;
     
     private int currentServerCount = 0;
     private int requestCounter = 0;
@@ -35,12 +37,36 @@ public class PythonServerManager {
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+        this.isDocker = detectDockerEnvironment();
         this.pythonExecutablePath = resolvePythonExecutable();
         this.pythonScriptPath = resolvePythonScriptPath();
         
-        logger.info("PythonServerManager initialized");
+        logger.info("PythonServerManager initialized (Docker: {})", isDocker);
         logger.info("Python executable: {}", pythonExecutablePath);
         logger.info("Python script: {}", pythonScriptPath);
+    }
+
+    /**
+     * Detect if running inside Docker container.
+     */
+    private boolean detectDockerEnvironment() {
+        // Check for .dockerenv file (created by Docker)
+        if (new File("/.dockerenv").exists()) {
+            return true;
+        }
+        // Check for Docker-specific cgroup
+        try {
+            File cgroupFile = new File("/proc/1/cgroup");
+            if (cgroupFile.exists()) {
+                String content = new String(java.nio.file.Files.readAllBytes(cgroupFile.toPath()));
+                if (content.contains("docker") || content.contains("kubepods")) {
+                    return true;
+                }
+            }
+        } catch (IOException e) {
+            // Ignore
+        }
+        return false;
     }
 
     /**
@@ -48,7 +74,7 @@ public class PythonServerManager {
      * @return true if servers were restarted, false if no change
      */
     public synchronized boolean ensureServersRunning(int numServers) throws Exception {
-        numServers = Math.min(numServers, 16);
+        numServers = Math.min(numServers, MAX_SERVERS);
         
         if (numServers != currentServerCount) {
             logger.info("Adjusting server count from {} to {}", currentServerCount, numServers);
@@ -182,6 +208,11 @@ public class PythonServerManager {
     }
 
     private String resolvePythonExecutable() {
+        if (isDocker) {
+            return "python";
+        }
+        
+        // Windows development paths
         String[] possiblePaths = {
             "../backend-alignment/venv/Scripts/python.exe",
             "backend-alignment/venv/Scripts/python.exe"
@@ -201,6 +232,11 @@ public class PythonServerManager {
     }
 
     private String resolvePythonScriptPath() {
+        if (isDocker) {
+            return "/app/backend-alignment/process-tree-alignment/alignment_server.py";
+        }
+        
+        // Windows development paths
         String[] possiblePaths = {
             "../backend-alignment/process-tree-alignment/alignment_server.py",
             "backend-alignment/process-tree-alignment/alignment_server.py"

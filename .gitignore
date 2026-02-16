@@ -29,6 +29,7 @@ __pycache__/
 *.pyd
 .Python
 *.so
+!backend-springboot/lib/linux/*.so
 *.egg
 *.egg-info/
 dist/
@@ -40,6 +41,7 @@ venv/
 env/
 ENV/
 backend-flask/venv/
+backend-alignment/venv/
 
 # ==========================================
 # Node.js (Frontend - Electron)
@@ -73,6 +75,7 @@ frontend-electron/build/
 *.yml
 !frontend-electron/electron-builder.json5
 !frontend-electron/docker-compose.yml
+!docker-compose.yml
 builder-debug.yml
 builder-effective-config.yaml
 

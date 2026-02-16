@@ -1,0 +1,71 @@
+# ==============================================================================
+# Combined Spring Boot + Python Alignment Server
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Build Spring Boot JAR
+# ------------------------------------------------------------------------------
+FROM eclipse-temurin:21-jdk-jammy AS builder
+
+WORKDIR /app
+
+# Copy Gradle files
+COPY backend-springboot/gradlew .
+COPY backend-springboot/gradle gradle
+COPY backend-springboot/build.gradle .
+COPY backend-springboot/settings.gradle .
+
+# Make gradlew executable and download dependencies
+RUN chmod +x gradlew && ./gradlew dependencies --no-daemon || true
+
+# Copy source code and libs
+COPY backend-springboot/src src
+COPY backend-springboot/lib lib
+
+# Build
+RUN ./gradlew bootJar --no-daemon
+
+# ------------------------------------------------------------------------------
+# Stage 2: Runtime image with Java + Python
+# ------------------------------------------------------------------------------
+FROM eclipse-temurin:21-jre-jammy
+
+WORKDIR /app
+
+# Install Python 3.11 and dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+# Copy Java artifacts
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Copy Linux lpsolve libraries
+COPY backend-springboot/lib/linux /app/lib/linux
+
+# Copy Python alignment server
+COPY backend-alignment/process-tree-alignment /app/backend-alignment/process-tree-alignment
+COPY backend-alignment/requirements.txt /app/backend-alignment/
+
+# Install Python dependencies (--ignore-installed to handle system package conflicts)
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir --ignore-installed -r /app/backend-alignment/requirements.txt
+
+# Gurobi license location
+ENV GRB_LICENSE_FILE=/app/gurobi.lic
+
+# Java configuration - use Linux libraries
+ENV JAVA_OPTS="-Xmx8g -Xms4g -Djava.library.path=/app/lib/linux"
+
+EXPOSE 8080
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

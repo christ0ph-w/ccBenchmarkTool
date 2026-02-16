@@ -289,7 +289,7 @@ def _build_response(results, stats, variants, variant_costs,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process Tree Alignment Server')
     parser.add_argument('--port', type=int, default=5001, help='Port to run server on')
-    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind to')
+    parser.add_argument('--host', type=str, default='0.0.0.0', help='Host to bind to')
     args = parser.parse_args()
 
     print(f"Starting alignment server on {args.host}:{args.port}")
