@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { FileItem, FrontendFileItem } from '@/types/fileTypes';
+import { fileService } from '@/services/fileService';
 
 const updateNodeInTree = (
   tree: FrontendFileItem[],
@@ -49,6 +50,7 @@ interface FileStore {
   setFileTree: (tree: FrontendFileItem[]) => void;
   updateFileTree: (path: string, updateFn: (node: FrontendFileItem) => FrontendFileItem) => void;
   removeFromFileTree: (path: string) => void;
+  refreshFileTree: () => Promise<void>;
 
   isFileSelected: (fileId: string) => boolean;
   getSelectedByType: (type: 'file' | 'directory') => FileItem[];
@@ -108,6 +110,20 @@ export const useFileStore = create<FileStore>((set, get) => ({
       }
       return { fileTree: newTree, expandedFolders: newExpanded };
     }),
+
+  refreshFileTree: async () => {
+    try {
+      const rootFiles = await fileService.listFiles('');
+      const processedRootFiles = rootFiles.map(file => ({
+        ...file,
+        children: file.type === 'directory' ? [] : undefined,
+        isExpanded: false,
+      }));
+      set({ fileTree: processedRootFiles });
+    } catch (err) {
+      console.error('Failed to refresh file tree:', err);
+    }
+  },
 
   isFileSelected: (fileId) =>
     get().selectedFiles.some(f => f.id === fileId),
