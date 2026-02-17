@@ -4,7 +4,7 @@ import { fileService } from '@/services/fileService';
 import { FolderItem } from './FolderItem';
 import { FileItem as FileItemComponent } from './FileItem';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { RefreshCw, FolderOpen, Upload, Plus, FolderCheck } from 'lucide-react';
+import { RefreshCw, FolderOpen, Plus, FolderCheck, FolderInput } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFileStore } from '@/stores/fileStore';
 import { cn } from '@/lib/utils';
@@ -12,13 +12,10 @@ import { cn } from '@/lib/utils';
 interface FileExplorerProps {
   rootPath?: string;
   onFileSelect?: (file: FrontendFileItem) => void;
-  allowedExtensions?: string[];
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
-  rootPath = '',
   onFileSelect,
-  allowedExtensions = ['.xes', '.pnml', '.ptml', '.json'],
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +33,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     setFileTree,
     updateFileTree,
     removeFromFileTree,
+    refreshFileTree,
+    loadFolderChildren,
   } = useFileStore();
 
   const selectedTopLevelDir = selectedFiles.find(
@@ -51,7 +50,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }
 
   useEffect(() => {
-    // Only load if tree is empty
     if (fileTree.length > 0) return;
 
     const loadInitialState = async () => {
@@ -84,14 +82,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      const rootFiles = await fileService.listFiles(rootPath);
-      const processedRootFiles = rootFiles.map(file => ({
-        ...file,
-        children: file.type === 'directory' ? [] : undefined,
-        isExpanded: false,
-      }));
-
-      setFileTree(processedRootFiles);
+      await refreshFileTree();
     } catch (err) {
       setError('Failed to refresh files');
     } finally {
@@ -104,7 +95,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     try {
       const result = await fileService.createWorkingDirectory();
       setWorkingDirectory(result.path);
-      await handleRefresh();
+      await refreshFileTree();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create directory';
       setError(errorMessage);
@@ -125,22 +116,24 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   };
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    event.target.value = '';
-
+  const handleBrowseFiles = async () => {
     if (!workingDirectory) {
       setError('No working directory set. Select or create one first.');
       return;
     }
 
     try {
-      await fileService.uploadFile(file);
-      handleRefresh();
+      const result = await fileService.uploadFileNative();
+      
+      if (result.canceled) {
+        return;
+      }
+      
+      if (result.success && result.files && result.files.length > 0) {
+        await refreshFileTree();
+      }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Upload failed';
+      const errorMessage = err instanceof Error ? err.message : 'Browse failed';
       setError(errorMessage);
     }
   };
@@ -162,12 +155,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     } else {
       setLoading(true);
       try {
-        const childFiles = await fileService.listFiles(folderPath);
-        const processedChildren = childFiles.map(child => ({
-          ...child,
-          children: child.type === 'directory' ? [] : undefined,
-          isExpanded: false,
-        }));
+        const processedChildren = await loadFolderChildren(folderPath);
 
         updateFileTree(folderPath, node => ({
           ...node,
@@ -309,22 +297,19 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           >
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
           </Button>
-          <Button variant="ghost" size="sm" asChild>
-            <label htmlFor="file-upload" className="cursor-pointer" title="Upload file">
-              <Upload className="h-4 w-4" />
-              <input
-                id="file-upload"
-                type="file"
-                className="hidden"
-                onChange={handleUpload}
-                accept={allowedExtensions.join(',')}
-              />
-            </label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBrowseFiles}
+            disabled={loading || !workingDirectory}
+            title="Import files"
+          >
+            <FolderInput className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <ScrollArea className="flex-1 max-h-[400px]">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-2 pb-6">
           {loading ? (
             <div className="text-center py-8">

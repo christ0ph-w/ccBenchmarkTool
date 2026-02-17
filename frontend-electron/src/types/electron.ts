@@ -12,6 +12,13 @@ export interface UploadResult {
   filename: string;
 }
 
+export interface NativeUploadResult {
+  success: boolean;
+  canceled?: boolean;
+  files?: Array<{ path: string; filename: string }>;
+  directory?: string;
+}
+
 export interface DeleteResult {
   success: boolean;
 }
@@ -47,6 +54,7 @@ declare global {
       createWorkingDirectory: () => Promise<CreateWorkingDirResult>;
       getDataDirectories: () => Promise<DataDirectory[]>;
       uploadFile: (fileData: UploadFileData) => Promise<UploadResult>;
+      uploadFileNative: () => Promise<NativeUploadResult>;
       deleteFile: (filePath: string) => Promise<DeleteResult>;
       readFile: (filePath: string) => Promise<ReadFileResult>;
       onMainConsoleLog: (callback: (data: any) => void) => void;

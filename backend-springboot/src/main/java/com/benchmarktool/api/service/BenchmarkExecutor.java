@@ -62,23 +62,22 @@ public class BenchmarkExecutor {
 
             long startTime = System.currentTimeMillis();
             long peakMemory = getMemoryUsed();
-            String dataDirectory = null;
+            String logDirectory = null;  // Changed from dataDirectory
 
             try {
                 String modelPath = resolveModelPath(request, strategy.getModelType());
-                String logDir = pathResolver.resolvePath(request.getLogDirectory());
-                dataDirectory = determineDataDirectory(logDir);
+                logDirectory = pathResolver.resolvePath(request.getLogDirectory());  // Store logDir here
 
                 result.setModelFile(new File(modelPath).getName());
                 logger.info("Model: {}", modelPath);
-                logger.info("Log Directory: {}", logDir);
+                logger.info("Log Directory: {}", logDirectory);
 
-                List<Path> xesFiles = getXesFilesFromDirectory(logDir);
+                List<Path> xesFiles = getXesFilesFromDirectory(logDirectory);
                 logger.info("Found {} XES files", xesFiles.size());
 
                 if (xesFiles.isEmpty()) {
                     result.setSuccess(false);
-                    result.setErrorMessage("No XES files found in directory: " + logDir);
+                    result.setErrorMessage("No XES files found in directory: " + logDirectory);
                     return result;
                 }
 
@@ -106,11 +105,11 @@ public class BenchmarkExecutor {
                         request.getPropagateCostsAcrossClusters());
 
                     Map<String, Object> configMap = new HashMap<>();
-                    configMap.put("use_bounds", request.getUseBounds());
-                    configMap.put("use_warm_start", request.getUseWarmStart());
-                    configMap.put("bound_threshold", request.getBoundThreshold());
-                    configMap.put("bounded_skip_strategy", request.getBoundedSkipStrategy());
-                    configMap.put("propagate_costs", request.getPropagateCostsAcrossClusters());
+                    configMap.put("useBounds", request.getUseBounds());
+                    configMap.put("useWarmStart", request.getUseWarmStart());
+                    configMap.put("boundThreshold", request.getUseBounds() ? request.getBoundThreshold() : null);
+                    configMap.put("boundedSkipStrategy", request.getUseBounds() ? request.getBoundedSkipStrategy() : null);
+                    configMap.put("propagateCosts", request.getPropagateCostsAcrossClusters());
                     result.setPtalignConfig(configMap);
                 }
 
@@ -138,22 +137,13 @@ public class BenchmarkExecutor {
             logger.info("Benchmark completed: {}ms, {} MB peak memory",
                 result.getTotalExecutionTimeMs(), result.getPeakMemoryMb());
 
-            if (dataDirectory != null && !result.getLogResults().isEmpty()) {
-                resultExporter.exportResult(result, strategy.getName(), result.getModelFile(), dataDirectory);
+            // Now pass logDirectory instead of dataDirectory
+            if (logDirectory != null && !result.getLogResults().isEmpty()) {
+                resultExporter.exportResult(result, strategy.getName(), result.getModelFile(), logDirectory);
             }
 
             return result;
         }
-    }
-
-    private String determineDataDirectory(String logPath) {
-        Path path = Paths.get(logPath);
-        if (Files.isRegularFile(path)) {
-            return path.getParent().toString();
-        } else if (Files.isDirectory(path)) {
-            return path.getParent().toString();
-        }
-        return path.toString();
     }
 
     private String resolveModelPath(BenchmarkRequest request, ModelType modelType) {
@@ -279,7 +269,6 @@ public class BenchmarkExecutor {
 
             long memoryUsed = (getMemoryUsed() - startMemory) / (1024 * 1024);
 
-            // Create result with all progression data
             LogBenchmarkResult result = new LogBenchmarkResult(
                 logName,
                 alignmentResult.getTotalTraces(),

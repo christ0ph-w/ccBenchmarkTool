@@ -30,23 +30,28 @@ public class BenchmarkResultExporter {
         this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
 
-    public void exportResult(BenchmarkResult result, String algorithm, String modelFile, String dataDirectory) {
+    public void exportResult(BenchmarkResult result, String algorithm, String modelFile, String logDirectory) {
         try {
-            Path resultsDir = Paths.get(dataDirectory, "results");
+            Path logDirPath = Paths.get(logDirectory);
+            Path dataDirectory = logDirPath.getParent();
+            Path resultsDir = dataDirectory.resolve("results");
             Files.createDirectories(resultsDir);
 
             String modelName = removeExtension(modelFile);
-            String logName = getLogNameForFilename(result.getLogResults());
+            String logDirName = logDirPath.getFileName().toString();
+            String baseLogName = extractBaseLogName(logDirName);
+            int logCount = result.getLogResults() != null ? result.getLogResults().size() : 0;
+            
             String shortId = result.getBenchmarkId() != null 
                 ? result.getBenchmarkId().substring(0, 8) 
                 : "unknown";
 
-            String filename = String.format("benchmark_%s_%s_%s_%s.json", 
-                shortId, algorithm, modelName, logName);
+            String filename = String.format("benchmark_%s_%s_%s_%d_logs.json", 
+                shortId, algorithm, modelName, logCount);
             
             Path outputPath = resultsDir.resolve(filename);
 
-            ObjectNode root = buildResultJson(result, algorithm, modelFile, logName);
+            ObjectNode root = buildResultJson(result, algorithm, modelFile, baseLogName, logDirName, logCount);
 
             objectMapper.writeValue(outputPath.toFile(), root);
             logger.info("Exported benchmark results to: {}", outputPath);
@@ -56,17 +61,17 @@ public class BenchmarkResultExporter {
         }
     }
 
-    private String getLogNameForFilename(List<LogBenchmarkResult> logResults) {
-        if (logResults == null || logResults.isEmpty()) {
-            return "unknown";
+    private String extractBaseLogName(String dirName) {
+        String[] splitPatterns = {"_hierarchical_", "_dbscan_", "_random_variant_split_", "_random_split_"};
+        
+        for (String pattern : splitPatterns) {
+            int idx = dirName.indexOf(pattern);
+            if (idx > 0) {
+                return dirName.substring(0, idx);
+            }
         }
-
-        if (logResults.size() == 1) {
-            String name = logResults.get(0).getLogName();
-            return removeExtension(name);
-        } else {
-            return logResults.size() + "_logs";
-        }
+        
+        return dirName;
     }
 
     private String removeExtension(String filename) {
@@ -78,17 +83,19 @@ public class BenchmarkResultExporter {
         return filename;
     }
 
-    private ObjectNode buildResultJson(BenchmarkResult result, String algorithm, String modelFile, String logName) {
+    private ObjectNode buildResultJson(BenchmarkResult result, String algorithm, String modelFile, 
+                                        String baseLogName, String logDirectory, int logCount) {
         ObjectNode root = objectMapper.createObjectNode();
 
-        // Add benchmarkId to JSON output
         if (result.getBenchmarkId() != null) {
             root.put("benchmarkId", result.getBenchmarkId());
         }
         
         root.put("algorithm", algorithm);
         root.put("modelFile", modelFile);
-        root.put("logName", logName);
+        root.put("logName", baseLogName);
+        root.put("logDirectory", logDirectory);
+        root.put("logCount", logCount);
         root.put("numThreads", result.getNumThreads());
         root.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")));
 
@@ -132,7 +139,7 @@ public class BenchmarkResultExporter {
 
         root.set("summary", summary);
 
-        // PTALIGN config section (only for PTALIGN algorithm)
+        // PTALIGN config section
         if (result.getPtalignConfig() != null) {
             ObjectNode configNode = objectMapper.createObjectNode();
             result.getPtalignConfig().forEach((key, value) -> {
@@ -168,7 +175,6 @@ public class BenchmarkResultExporter {
     private ObjectNode buildLogResultNode(LogBenchmarkResult logResult) {
         ObjectNode logNode = objectMapper.createObjectNode();
 
-        // Log metadata
         logNode.put("totalTraces", logResult.getTotalTraces());
         logNode.put("totalVariants", logResult.getTotalVariants());
         logNode.put("successfulAlignments", logResult.getSuccessfulAlignments());
@@ -178,7 +184,6 @@ public class BenchmarkResultExporter {
         logNode.put("executionTimeMs", logResult.getExecutionTimeMs());
         logNode.put("memoryUsedMb", logResult.getMemoryUsedMb());
 
-        // Timing breakdown
         if (logResult.getTiming() != null) {
             ObjectNode timingNode = objectMapper.createObjectNode();
             TimingBreakdown timing = logResult.getTiming();
@@ -195,7 +200,6 @@ public class BenchmarkResultExporter {
             logNode.set("timing", timingNode);
         }
 
-        // Optimization stats
         if (logResult.getOptimizationStats() != null) {
             ObjectNode statsNode = objectMapper.createObjectNode();
             AlignmentResult.OptimizationStats stats = logResult.getOptimizationStats();
@@ -207,7 +211,6 @@ public class BenchmarkResultExporter {
             logNode.set("optimizationStats", statsNode);
         }
 
-        // Alignments
         ArrayNode alignmentsArray = objectMapper.createArrayNode();
         if (logResult.getAlignments() != null) {
             for (TraceAlignmentDetail alignment : logResult.getAlignments()) {
@@ -217,7 +220,6 @@ public class BenchmarkResultExporter {
         }
         logNode.set("alignments", alignmentsArray);
 
-        // Bounds progression (for thesis analysis)
         if (logResult.getBoundsProgression() != null && !logResult.getBoundsProgression().isEmpty()) {
             ArrayNode progressionArray = objectMapper.createArrayNode();
             for (AlignmentResult.BoundsProgressionEntry entry : logResult.getBoundsProgression()) {
@@ -227,7 +229,6 @@ public class BenchmarkResultExporter {
             logNode.set("boundsProgression", progressionArray);
         }
 
-        // Global bounds progression (for convergence visualization)
         if (logResult.getGlobalBoundsProgression() != null && !logResult.getGlobalBoundsProgression().isEmpty()) {
             ArrayNode globalProgressionArray = objectMapper.createArrayNode();
             for (AlignmentResult.GlobalBoundsSnapshot snapshot : logResult.getGlobalBoundsProgression()) {
@@ -243,7 +244,6 @@ public class BenchmarkResultExporter {
     private ObjectNode buildAlignmentNode(TraceAlignmentDetail alignment) {
         ObjectNode alignmentNode = objectMapper.createObjectNode();
 
-        // Variant name as array
         ArrayNode variantArray = objectMapper.createArrayNode();
         if (alignment.getVariantName() != null) {
             for (String activity : alignment.getVariantName()) {
@@ -252,18 +252,15 @@ public class BenchmarkResultExporter {
         }
         alignmentNode.set("variantName", variantArray);
 
-        // Core metrics
         alignmentNode.put("alignmentCost", alignment.getAlignmentCost());
         alignmentNode.put("fitness", alignment.getFitness());
         alignmentNode.put("traceLength", alignment.getTraceLength());
         alignmentNode.put("traceCount", alignment.getTraceCount());
 
-        // Timing and method
         alignmentNode.put("alignmentTimeMs", alignment.getAlignmentTimeMs());
         alignmentNode.put("statesExplored", alignment.getStatesExplored());
         alignmentNode.put("method", alignment.getMethod().name().toLowerCase());
 
-        // Bounds info
         alignmentNode.put("lowerBound", alignment.getLowerBound());
         if (alignment.getUpperBound() < Double.MAX_VALUE) {
             alignmentNode.put("upperBound", alignment.getUpperBound());

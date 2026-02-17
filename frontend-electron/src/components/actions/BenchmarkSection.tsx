@@ -10,6 +10,66 @@ import { ActionSection, StepList, SettingsSummary } from './components';
 import type { ValidationStep, SettingsItem } from './types';
 import type { BenchmarkPayload, BenchmarkSession } from '@/types/benchmarkTypes';
 
+/**
+ * Parse comma-separated threshold string into array of numbers
+ */
+function parseThresholds(input: string): number[] {
+  return input
+    .split(',')
+    .map((s) => parseFloat(s.trim()))
+    .filter((n) => !isNaN(n) && n >= 0)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Generate batch payloads for PTALIGN:
+ * 1. Baseline (no optimizations)
+ * 2. Warmstart-only (warm start, no bounds)
+ * 3. Full optimization for each threshold
+ */
+function generateBatchPayloads(
+  basePayload: BenchmarkPayload,
+  thresholds: number[],
+  skipStrategy: string,
+  propagateCosts: boolean
+): BenchmarkPayload[] {
+  const payloads: BenchmarkPayload[] = [];
+
+  // 1. Baseline - no optimizations
+  payloads.push({
+    ...basePayload,
+    useBounds: false,
+    useWarmStart: false,
+    boundThreshold: 0,
+    boundedSkipStrategy: skipStrategy as 'lower' | 'midpoint' | 'upper',
+    propagateCostsAcrossClusters: propagateCosts,
+  });
+
+  // 2. Warmstart-only - warm start, no bounds
+  payloads.push({
+    ...basePayload,
+    useBounds: false,
+    useWarmStart: true,
+    boundThreshold: 0,
+    boundedSkipStrategy: skipStrategy as 'lower' | 'midpoint' | 'upper',
+    propagateCostsAcrossClusters: propagateCosts,
+  });
+
+  // 3. Full optimization for each threshold
+  for (const threshold of thresholds) {
+    payloads.push({
+      ...basePayload,
+      useBounds: true,
+      useWarmStart: true,
+      boundThreshold: threshold,
+      boundedSkipStrategy: skipStrategy as 'lower' | 'midpoint' | 'upper',
+      propagateCostsAcrossClusters: propagateCosts,
+    });
+  }
+
+  return payloads;
+}
+
 export function BenchmarkSection() {
   const navigate = useNavigate();
   const { benchmarking } = useSettingsStore();
@@ -41,10 +101,21 @@ export function BenchmarkSection() {
     (id) => BENCHMARK_ALGORITHMS[id]?.modelType === 'ptml'
   );
 
+  const isBatchMode = benchmarking.selectedAlgorithms.includes('PTALIGN') && 
+                      benchmarking.params.batchMode === true;
+
+  const batchThresholds = useMemo(() => {
+    if (!isBatchMode) return [];
+    const thresholdStr = benchmarking.params.batchThresholds ?? '0, 1, 2, 3, 5';
+    return parseThresholds(thresholdStr);
+  }, [isBatchMode, benchmarking.params.batchThresholds]);
+
+  // Calculate total runs for batch mode
+  const totalBatchRuns = isBatchMode ? 2 + batchThresholds.length : 0; // baseline + warmstart + thresholds
+
   const steps = useMemo<ValidationStep[]>(() => {
     const result: ValidationStep[] = [];
 
-    // Only show model requirements (algorithms already in settings)
     if (needsPnml) {
       result.push(
         pnmlFiles.length > 0
@@ -67,7 +138,6 @@ export function BenchmarkSection() {
       );
     }
 
-    // Log data requirement
     const hasLogs = eventLogs.length > 0 || directories.length > 0;
     result.push(
       hasLogs
@@ -93,59 +163,91 @@ export function BenchmarkSection() {
 
     items.push({ label: 'CPU Cores', value: String(benchmarking.coreCount) });
 
-    if (benchmarking.selectedAlgorithms.includes('PTALIGN') && Object.keys(benchmarking.params).length > 0) {
-      const ptalignConfig = BENCHMARK_ALGORITHMS['PTALIGN'];
-      ptalignConfig.parameters.forEach((param) => {
-        const value = benchmarking.params[param.key];
-        if (value !== undefined) {
-          items.push({ label: param.label, value: String(value) });
+    if (benchmarking.selectedAlgorithms.includes('PTALIGN')) {
+      const params = benchmarking.params;
+      if (isBatchMode) {
+        items.push({ label: 'Batch Mode', value: 'Enabled' });
+        items.push({ 
+          label: 'Batch Runs', 
+          value: `Baseline + WS + ${batchThresholds.length} thresholds (${totalBatchRuns} total)` 
+        });
+        items.push({ label: 'Thresholds', value: batchThresholds.join(', ') });
+      } else {
+        items.push({ label: 'Warm Start', value: String(params.useWarmStart ?? true) });
+        items.push({ label: 'Bounded Skip', value: String(params.useBounds ?? true) });
+        if (params.useBounds) {
+          items.push({ label: 'Bound Threshold', value: String(params.boundThreshold ?? 1) });
+          items.push({ label: 'Skip Strategy', value: params.boundedSkipStrategy ?? 'upper' });
         }
-      });
+      }
+      items.push({ label: 'Propagate Costs', value: String(params.propagateCostsAcrossClusters ?? false) });
     }
 
     return items;
-  }, [benchmarking]);
+  }, [benchmarking, isBatchMode, batchThresholds, totalBatchRuns]);
 
-  // Need algorithms selected + all steps OK
   const canRun = benchmarking.selectedAlgorithms.length > 0 && steps.every((s) => s.status === 'ok');
 
   const handleRun = () => {
     if (!canRun) return;
 
-    log('log', `Starting benchmark with algorithms: ${benchmarking.selectedAlgorithms.join(', ')}`);
-    log('log', `CPU Cores: ${benchmarking.coreCount}, Logs: ${eventLogs.length + directories.length} sources`);
-
     const logDir = directories.length > 0 ? directories[0].path : eventLogs[0].path;
+    let payloads: BenchmarkPayload[] = [];
 
-    const payloads: BenchmarkPayload[] = benchmarking.selectedAlgorithms.map((algorithmId) => {
+    for (const algorithmId of benchmarking.selectedAlgorithms) {
       const algo = BENCHMARK_ALGORITHMS[algorithmId];
 
-      const payload: BenchmarkPayload = {
+      const basePayload: BenchmarkPayload = {
         algorithm: algorithmId,
         numThreads: benchmarking.coreCount,
         logDirectory: logDir,
       };
 
       if (algo.modelType === 'pnml') {
-        payload.pnmlModelPath = pnmlFiles[0].path;
+        basePayload.pnmlModelPath = pnmlFiles[0].path;
       } else {
-        payload.ptmlModelPath = ptmlFiles[0].path;
+        basePayload.ptmlModelPath = ptmlFiles[0].path;
       }
 
-      if (algorithmId === 'PTALIGN') {
-        payload.useBounds = benchmarking.params.useBounds ?? true;
-        payload.useWarmStart = benchmarking.params.useWarmStart ?? true;
-        payload.boundThreshold = benchmarking.params.boundThreshold ?? 1.0;
-        payload.boundedSkipStrategy = benchmarking.params.boundedSkipStrategy ?? 'upper';
-        payload.propagateCostsAcrossClusters = benchmarking.params.propagateCostsAcrossClusters ?? false;
+      if (algorithmId === 'PTALIGN' && isBatchMode) {
+        // Batch mode: generate multiple payloads
+        const batchPayloads = generateBatchPayloads(
+          basePayload,
+          batchThresholds,
+          benchmarking.params.boundedSkipStrategy ?? 'upper',
+          benchmarking.params.propagateCostsAcrossClusters ?? false
+        );
+        payloads.push(...batchPayloads);
+        
+        log('log', `Starting batch benchmark with ${batchPayloads.length} configurations`);
+        log('log', `Configurations: Baseline, Warmstart-only, t=${batchThresholds.join(', t=')}`);
+      } else if (algorithmId === 'PTALIGN') {
+        // Single run mode
+        basePayload.useBounds = benchmarking.params.useBounds ?? true;
+        basePayload.useWarmStart = benchmarking.params.useWarmStart ?? true;
+        basePayload.boundThreshold = benchmarking.params.boundThreshold ?? 1.0;
+        basePayload.boundedSkipStrategy = benchmarking.params.boundedSkipStrategy ?? 'upper';
+        basePayload.propagateCostsAcrossClusters = benchmarking.params.propagateCostsAcrossClusters ?? false;
+        payloads.push(basePayload);
+        
+        log('log', `Starting benchmark with algorithm: ${algorithmId}`);
+      } else {
+        // Non-PTALIGN algorithms
+        payloads.push(basePayload);
+        log('log', `Starting benchmark with algorithm: ${algorithmId}`);
       }
+    }
 
-      return payload;
-    });
+    log('log', `CPU Cores: ${benchmarking.coreCount}, Logs: ${eventLogs.length + directories.length} sources`);
+    log('log', `Starting benchmark with ${payloads.length} algorithm(s)`);
 
     const session: BenchmarkSession = { payloads };
     navigate('/benchmark', { state: session });
   };
+
+  const buttonLabel = isBatchMode 
+    ? `Run Batch (${totalBatchRuns} configs)` 
+    : 'Run Benchmark';
 
   return (
     <ActionSection title="Benchmarking">
@@ -158,7 +260,7 @@ export function BenchmarkSection() {
         variant="secondary"
       >
         <Play className="h-4 w-4 mr-2" />
-        Run Benchmark
+        {buttonLabel}
       </Button>
     </ActionSection>
   );

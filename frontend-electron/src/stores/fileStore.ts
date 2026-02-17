@@ -50,7 +50,8 @@ interface FileStore {
   setFileTree: (tree: FrontendFileItem[]) => void;
   updateFileTree: (path: string, updateFn: (node: FrontendFileItem) => FrontendFileItem) => void;
   removeFromFileTree: (path: string) => void;
-  refreshFileTree: () => Promise<void>;
+  refreshFileTree: (preserveExpanded?: boolean) => Promise<void>;
+  loadFolderChildren: (folderPath: string) => Promise<FrontendFileItem[]>;
 
   isFileSelected: (fileId: string) => boolean;
   getSelectedByType: (type: 'file' | 'directory') => FileItem[];
@@ -103,15 +104,38 @@ export const useFileStore = create<FileStore>((set, get) => ({
     set((state) => {
       const newTree = removeFromTree(state.fileTree, path);
       const newExpanded = new Set(state.expandedFolders);
+      
+      // Clean up expanded folders
       for (const p of state.expandedFolders) {
         if (p === path || p.startsWith(path + '/')) {
           newExpanded.delete(p);
         }
       }
-      return { fileTree: newTree, expandedFolders: newExpanded };
+      
+      // Clean up selected files - remove deleted file and any children
+      const newSelectedFiles = state.selectedFiles.filter(
+        f => f.path !== path && !f.path.startsWith(path + '/')
+      );
+      
+      return { 
+        fileTree: newTree, 
+        expandedFolders: newExpanded,
+        selectedFiles: newSelectedFiles,
+      };
     }),
 
-  refreshFileTree: async () => {
+  loadFolderChildren: async (folderPath: string) => {
+    const childFiles = await fileService.listFiles(folderPath);
+    return childFiles.map(child => ({
+      ...child,
+      children: child.type === 'directory' ? [] : undefined,
+      isExpanded: false,
+    }));
+  },
+
+  refreshFileTree: async (preserveExpanded = true) => {
+    const { expandedFolders, loadFolderChildren, updateFileTree, selectedFiles } = get();
+    
     try {
       const rootFiles = await fileService.listFiles('');
       const processedRootFiles = rootFiles.map(file => ({
@@ -119,7 +143,43 @@ export const useFileStore = create<FileStore>((set, get) => ({
         children: file.type === 'directory' ? [] : undefined,
         isExpanded: false,
       }));
+
+      // Collect all valid paths after refresh
+      const validPaths = new Set<string>();
+      const collectPaths = (items: FrontendFileItem[]) => {
+        items.forEach(item => {
+          validPaths.add(item.path);
+        });
+      };
+      collectPaths(processedRootFiles);
+
       set({ fileTree: processedRootFiles });
+
+      if (preserveExpanded && expandedFolders.size > 0) {
+        const sortedPaths = Array.from(expandedFolders).sort(
+          (a, b) => a.split('/').length - b.split('/').length
+        );
+
+        for (const folderPath of sortedPaths) {
+          try {
+            const children = await loadFolderChildren(folderPath);
+            children.forEach(child => validPaths.add(child.path));
+            updateFileTree(folderPath, node => ({
+              ...node,
+              children,
+              isExpanded: true,
+            }));
+          } catch {
+            // Folder may no longer exist
+          }
+        }
+      }
+
+      // Clean up selected files that no longer exist
+      const validSelectedFiles = selectedFiles.filter(f => validPaths.has(f.path));
+      if (validSelectedFiles.length !== selectedFiles.length) {
+        set({ selectedFiles: validSelectedFiles });
+      }
     } catch (err) {
       console.error('Failed to refresh file tree:', err);
     }

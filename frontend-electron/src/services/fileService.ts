@@ -1,5 +1,15 @@
 import { FrontendFileItem } from '@/types/fileTypes';
-import type { UploadResult, DeleteResult, UploadFileData, SetWorkingDirResult, CreateWorkingDirResult, DataDirectory } from '@/types/electron';
+import type { 
+  UploadResult, 
+  NativeUploadResult,
+  DeleteResult, 
+  UploadFileData, 
+  SetWorkingDirResult, 
+  CreateWorkingDirResult, 
+  DataDirectory 
+} from '@/types/electron';
+
+const MAX_DRAG_DROP_SIZE = 10 * 1024 * 1024; // 10MB
 
 class FileService {
   async listFiles(path: string = ''): Promise<FrontendFileItem[]> {
@@ -14,6 +24,13 @@ class FileService {
       throw new Error('Electron API not available');
     }
 
+    if (file.size > MAX_DRAG_DROP_SIZE) {
+      throw new Error(
+        `File "${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). ` +
+        `Please use "Browse Files" for files larger than 10MB.`
+      );
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
@@ -25,6 +42,13 @@ class FileService {
     };
 
     return await window.electronAPI.uploadFile(fileData);
+  }
+
+  async uploadFileNative(): Promise<NativeUploadResult> {
+    if (!window.electronAPI?.uploadFileNative) {
+      throw new Error('Electron API not available');
+    }
+    return await window.electronAPI.uploadFileNative();
   }
 
   async deleteFile(filePath: string): Promise<DeleteResult> {

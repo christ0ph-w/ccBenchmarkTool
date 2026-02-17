@@ -1,11 +1,11 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlgorithmParameter } from '@/config/clusteringAlgorithms';
+import { BenchmarkParameter } from '@/config/benchmarkAlgorithms';
 import { Checkbox } from '@/components/ui/checkbox';
 
 interface ParameterInputProps {
-  parameter: AlgorithmParameter;
+  parameter: BenchmarkParameter;
   value: any;
   onChange: (value: any) => void;
   allParams?: Record<string, any>;
@@ -62,7 +62,20 @@ export const ParameterInput: React.FC<ParameterInputProps> = ({
           max={parameter.max}
           step={parameter.step || 1}
           value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value) || parameter.default)}
+          onChange={(e) => {
+            const parsed = parseFloat(e.target.value);
+            onChange(Number.isNaN(parsed) ? parameter.default : parsed);
+          }}
+        />
+      )}
+
+      {parameter.type === 'text' && (
+        <Input
+          id={parameter.key}
+          type="text"
+          value={value ?? parameter.default}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={parameter.default}
         />
       )}
 

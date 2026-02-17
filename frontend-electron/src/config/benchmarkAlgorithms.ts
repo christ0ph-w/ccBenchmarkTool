@@ -10,7 +10,7 @@ export interface BenchmarkParameter {
   key: string;
   label: string;
   description?: string;
-  type: 'toggle' | 'number' | 'select';
+  type: 'toggle' | 'number' | 'select' | 'text' | 'slider';
   default: any;
   options?: { value: string; label: string }[];
   min?: number;
@@ -41,11 +41,27 @@ export const BENCHMARK_ALGORITHMS: Record<string, BenchmarkAlgorithm> = {
     modelType: 'ptml',
     parameters: [
       {
+        key: 'batchMode',
+        label: 'Batch Mode',
+        description: 'Run baseline, warmstart-only, and multiple thresholds automatically',
+        type: 'toggle',
+        default: false,
+      },
+      {
+        key: 'batchThresholds',
+        label: 'Batch Thresholds',
+        description: 'Comma-separated thresholds (e.g., 0, 1, 2, 3, 5)',
+        type: 'text',
+        default: '0, 1, 2, 3, 5',
+        condition: (params) => params.batchMode === true,
+      },
+      {
         key: 'useWarmStart',
         label: 'Warm Start',
         description: 'Reuse previous alignment solutions as starting points',
         type: 'toggle',
         default: true,
+        condition: (params) => params.batchMode !== true,
       },
       {
         key: 'useBounds',
@@ -53,6 +69,7 @@ export const BENCHMARK_ALGORITHMS: Record<string, BenchmarkAlgorithm> = {
         description: 'Use bounds to skip variants with predictable costs',
         type: 'toggle',
         default: true,
+        condition: (params) => params.batchMode !== true,
       },
       {
         key: 'boundThreshold',
@@ -63,7 +80,7 @@ export const BENCHMARK_ALGORITHMS: Record<string, BenchmarkAlgorithm> = {
         min: 0,
         max: 50,
         step: 1,
-        condition: (params) => params.useBounds === true,
+        condition: (params) => params.batchMode !== true && params.useBounds === true,
       },
       {
         key: 'boundedSkipStrategy',
@@ -76,7 +93,7 @@ export const BENCHMARK_ALGORITHMS: Record<string, BenchmarkAlgorithm> = {
           { value: 'midpoint', label: 'Midpoint' },
           { value: 'upper', label: 'Upper Bound' },
         ],
-        condition: (params) => params.useBounds === true,
+        condition: (params) => params.batchMode !== true && params.useBounds === true,
       },
       {
         key: 'propagateCostsAcrossClusters',

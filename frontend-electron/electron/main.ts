@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -177,6 +177,47 @@ ipcMain.handle('read-file', async (_event, filePath: string) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('upload-file-native', async () => {
+  if (!currentWorkingDir) {
+    throw new Error('No working directory set. Please select or create one first.');
+  }
+
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'All Supported', extensions: ['xes', 'pnml', 'ptml', 'json'] },
+      { name: 'Event Logs', extensions: ['xes'] },
+      { name: 'Petri Nets', extensions: ['pnml'] },
+      { name: 'Process Trees', extensions: ['ptml'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return { success: false, canceled: true };
+  }
+
+  const uploaded: Array<{ path: string; filename: string }> = [];
+
+  for (const sourcePath of result.filePaths) {
+    const filename = path.basename(sourcePath);
+    const destPath = path.join(currentWorkingDir, filename);
+    
+    await fs.promises.copyFile(sourcePath, destPath);
+    
+    uploaded.push({
+      path: destPath,
+      filename,
+    });
+  }
+
+  return {
+    success: true,
+    files: uploaded,
+    directory: path.basename(currentWorkingDir),
+  };
 });
 
 // --- Window ---
