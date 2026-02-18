@@ -21,9 +21,12 @@ export const FolderItem: React.FC<FolderItemProps> = ({
   onSelect,
   onDelete,
 }) => {
-  const { isFileSelected } = useFileStore();
+  const { isFileSelected, canSelectFile } = useFileStore();
   const isSelected = isFileSelected(folder.id);
   const [isHovering, setIsHovering] = useState(false);
+
+  const selectionCheck = canSelectFile(folder);
+  const isBlocked = !isSelected && !selectionCheck.allowed;
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -31,6 +34,7 @@ export const FolderItem: React.FC<FolderItemProps> = ({
   };
 
   const handleSelect = () => {
+    if (isBlocked) return;
     onSelect(folder);
   };
 
@@ -42,19 +46,21 @@ export const FolderItem: React.FC<FolderItemProps> = ({
   return (
     <div
       className={cn(
-        "flex items-center justify-between py-1 px-2 rounded-md cursor-pointer",
+        "flex items-center justify-between py-1 px-2 rounded-md",
         isSelected && "bg-accent border border-primary",
-        !isSelected && "hover:bg-accent/50"
+        !isSelected && !isBlocked && "hover:bg-accent/50 cursor-pointer",
+        isBlocked && "opacity-50 cursor-not-allowed"
       )}
       style={{ paddingLeft: `${level * 16 + 8}px` }}
       onClick={handleSelect}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
+      title={isBlocked ? selectionCheck.reason : undefined}
     >
       <div className="flex items-center min-w-0">
         <ChevronRight
           className={cn(
-            "h-4 w-4 mr-1 transition-transform shrink-0",
+            "h-4 w-4 mr-1 transition-transform shrink-0 cursor-pointer",
             isExpanded && "rotate-90"
           )}
           onClick={handleToggle}
@@ -67,7 +73,7 @@ export const FolderItem: React.FC<FolderItemProps> = ({
         <span className="text-sm truncate">{folder.name}</span>
       </div>
 
-      {isHovering && (
+      {isHovering && !isBlocked && (
         <button
           onClick={handleDeleteClick}
           className="shrink-0 ml-2 p-1 hover:bg-destructive/20 rounded transition-colors"

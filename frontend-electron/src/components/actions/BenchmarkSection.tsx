@@ -10,9 +10,6 @@ import { ActionSection, StepList, SettingsSummary } from './components';
 import type { ValidationStep, SettingsItem } from './types';
 import type { BenchmarkPayload, BenchmarkSession } from '@/types/benchmarkTypes';
 
-/**
- * Parse comma-separated threshold string into array of numbers
- */
 function parseThresholds(input: string): number[] {
   return input
     .split(',')
@@ -21,12 +18,6 @@ function parseThresholds(input: string): number[] {
     .sort((a, b) => a - b);
 }
 
-/**
- * Generate batch payloads for PTALIGN:
- * 1. Baseline (no optimizations)
- * 2. Warmstart-only (warm start, no bounds)
- * 3. Full optimization for each threshold
- */
 function generateBatchPayloads(
   basePayload: BenchmarkPayload,
   thresholds: number[],
@@ -35,7 +26,6 @@ function generateBatchPayloads(
 ): BenchmarkPayload[] {
   const payloads: BenchmarkPayload[] = [];
 
-  // 1. Baseline - no optimizations
   payloads.push({
     ...basePayload,
     useBounds: false,
@@ -45,7 +35,6 @@ function generateBatchPayloads(
     propagateCostsAcrossClusters: propagateCosts,
   });
 
-  // 2. Warmstart-only - warm start, no bounds
   payloads.push({
     ...basePayload,
     useBounds: false,
@@ -55,7 +44,6 @@ function generateBatchPayloads(
     propagateCostsAcrossClusters: propagateCosts,
   });
 
-  // 3. Full optimization for each threshold
   for (const threshold of thresholds) {
     payloads.push({
       ...basePayload,
@@ -73,8 +61,14 @@ function generateBatchPayloads(
 export function BenchmarkSection() {
   const navigate = useNavigate();
   const { benchmarking } = useSettingsStore();
-  const { selectedFiles } = useFileStore();
+  const { getSelectionState } = useFileStore();
   const { addLog } = useConsoleStore();
+
+  const { pnmlModel, ptmlModel, logDirectory, logFile } = getSelectionState();
+  
+  const hasLogData = logDirectory !== null || logFile !== null;
+  const logPath = logDirectory?.path ?? logFile?.path ?? null;
+  const logDisplayName = logDirectory?.name ?? logFile?.name ?? null;
 
   const log = (level: 'log' | 'warn' | 'error', message: string) => {
     addLog({
@@ -86,13 +80,6 @@ export function BenchmarkSection() {
       message,
     });
   };
-
-  const { pnmlFiles, ptmlFiles, eventLogs, directories } = useMemo(() => ({
-    pnmlFiles: selectedFiles.filter((f) => f.type === 'file' && f.name.toLowerCase().endsWith('.pnml')),
-    ptmlFiles: selectedFiles.filter((f) => f.type === 'file' && f.name.toLowerCase().endsWith('.ptml')),
-    eventLogs: selectedFiles.filter((f) => f.type === 'file' && f.name.toLowerCase().endsWith('.xes')),
-    directories: selectedFiles.filter((f) => f.type === 'directory'),
-  }), [selectedFiles]);
 
   const needsPnml = benchmarking.selectedAlgorithms.some(
     (id) => BENCHMARK_ALGORITHMS[id]?.modelType === 'pnml'
@@ -110,16 +97,15 @@ export function BenchmarkSection() {
     return parseThresholds(thresholdStr);
   }, [isBatchMode, benchmarking.params.batchThresholds]);
 
-  // Calculate total runs for batch mode
-  const totalBatchRuns = isBatchMode ? 2 + batchThresholds.length : 0; // baseline + warmstart + thresholds
+  const totalBatchRuns = isBatchMode ? 2 + batchThresholds.length : 0;
 
   const steps = useMemo<ValidationStep[]>(() => {
     const result: ValidationStep[] = [];
 
     if (needsPnml) {
       result.push(
-        pnmlFiles.length > 0
-          ? { label: 'Petri Net model', status: 'ok', detail: pnmlFiles[0].name }
+        pnmlModel
+          ? { label: 'Petri Net model', status: 'ok', detail: pnmlModel.name }
           : {
               label: 'Petri Net model',
               status: 'warning',
@@ -132,27 +118,20 @@ export function BenchmarkSection() {
 
     if (needsPtml) {
       result.push(
-        ptmlFiles.length > 0
-          ? { label: 'Process Tree model', status: 'ok', detail: ptmlFiles[0].name }
+        ptmlModel
+          ? { label: 'Process Tree model', status: 'ok', detail: ptmlModel.name }
           : { label: 'Process Tree model', status: 'warning', detail: 'Required by PTALIGN' }
       );
     }
 
-    const hasLogs = eventLogs.length > 0 || directories.length > 0;
     result.push(
-      hasLogs
-        ? {
-            label: 'Log data',
-            status: 'ok',
-            detail: directories.length > 0
-              ? directories[0].name
-              : `${eventLogs.length} file${eventLogs.length > 1 ? 's' : ''}`,
-          }
-        : { label: 'Log data', status: 'warning', detail: 'Select logs or a directory' }
+      hasLogData
+        ? { label: 'Log data', status: 'ok', detail: logDisplayName! }
+        : { label: 'Log data', status: 'warning', detail: 'Select a directory or .xes file' }
     );
 
     return result;
-  }, [benchmarking.selectedAlgorithms, needsPnml, needsPtml, pnmlFiles, ptmlFiles, eventLogs, directories]);
+  }, [benchmarking.selectedAlgorithms, needsPnml, needsPtml, pnmlModel, ptmlModel, hasLogData, logDisplayName]);
 
   const settings = useMemo<SettingsItem[]>(() => {
     const items: SettingsItem[] = [];
@@ -189,9 +168,8 @@ export function BenchmarkSection() {
   const canRun = benchmarking.selectedAlgorithms.length > 0 && steps.every((s) => s.status === 'ok');
 
   const handleRun = () => {
-    if (!canRun) return;
+    if (!canRun || !logPath) return;
 
-    const logDir = directories.length > 0 ? directories[0].path : eventLogs[0].path;
     let payloads: BenchmarkPayload[] = [];
 
     for (const algorithmId of benchmarking.selectedAlgorithms) {
@@ -200,17 +178,16 @@ export function BenchmarkSection() {
       const basePayload: BenchmarkPayload = {
         algorithm: algorithmId,
         numThreads: benchmarking.coreCount,
-        logDirectory: logDir,
+        logDirectory: logPath,
       };
 
-      if (algo.modelType === 'pnml') {
-        basePayload.pnmlModelPath = pnmlFiles[0].path;
-      } else {
-        basePayload.ptmlModelPath = ptmlFiles[0].path;
+      if (algo.modelType === 'pnml' && pnmlModel) {
+        basePayload.pnmlModelPath = pnmlModel.path;
+      } else if (algo.modelType === 'ptml' && ptmlModel) {
+        basePayload.ptmlModelPath = ptmlModel.path;
       }
 
       if (algorithmId === 'PTALIGN' && isBatchMode) {
-        // Batch mode: generate multiple payloads
         const batchPayloads = generateBatchPayloads(
           basePayload,
           batchThresholds,
@@ -222,7 +199,6 @@ export function BenchmarkSection() {
         log('log', `Starting batch benchmark with ${batchPayloads.length} configurations`);
         log('log', `Configurations: Baseline, Warmstart-only, t=${batchThresholds.join(', t=')}`);
       } else if (algorithmId === 'PTALIGN') {
-        // Single run mode
         basePayload.useBounds = benchmarking.params.useBounds ?? true;
         basePayload.useWarmStart = benchmarking.params.useWarmStart ?? true;
         basePayload.boundThreshold = benchmarking.params.boundThreshold ?? 1.0;
@@ -232,14 +208,13 @@ export function BenchmarkSection() {
         
         log('log', `Starting benchmark with algorithm: ${algorithmId}`);
       } else {
-        // Non-PTALIGN algorithms
         payloads.push(basePayload);
         log('log', `Starting benchmark with algorithm: ${algorithmId}`);
       }
     }
 
-    log('log', `CPU Cores: ${benchmarking.coreCount}, Logs: ${eventLogs.length + directories.length} sources`);
-    log('log', `Starting benchmark with ${payloads.length} algorithm(s)`);
+    log('log', `CPU Cores: ${benchmarking.coreCount}, Log data: ${logDisplayName}`);
+    log('log', `Starting benchmark with ${payloads.length} configuration(s)`);
 
     const session: BenchmarkSession = { payloads };
     navigate('/benchmark', { state: session });

@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { FileItem, FrontendFileItem } from '@/types/fileTypes';
 import { fileService } from '@/services/fileService';
 
+const EXCLUDED_DIRECTORIES = ['distance_matrix', 'results'];
+
 const updateNodeInTree = (
   tree: FrontendFileItem[],
   path: string,
@@ -33,6 +35,30 @@ const removeFromTree = (
     }));
 };
 
+interface SelectionState {
+  eventLog: FileItem | null;
+  pnmlModel: FileItem | null;
+  ptmlModel: FileItem | null;
+  logDirectory: FileItem | null;
+  logFile: FileItem | null;
+  resultFiles: FileItem[];
+}
+
+function isInResultsDirectory(path: string): boolean {
+  const parts = path.replace(/\\/g, '/').split('/');
+  return parts.length >= 2 && parts[1] === 'results';
+}
+
+function getWorkingDirName(workingDirectory: string | null): string | null {
+  if (!workingDirectory) return null;
+  const parts = workingDirectory.replace(/\\/g, '/').split('/');
+  return parts[parts.length - 1] || null;
+}
+
+function isTopLevelDirectory(path: string): boolean {
+  return !path.replace(/\\/g, '/').includes('/');
+}
+
 interface FileStore {
   selectedFiles: FileItem[];
   currentDirectory: string;
@@ -55,6 +81,9 @@ interface FileStore {
 
   isFileSelected: (fileId: string) => boolean;
   getSelectedByType: (type: 'file' | 'directory') => FileItem[];
+  
+  getSelectionState: () => SelectionState;
+  canSelectFile: (file: FileItem) => { allowed: boolean; reason?: string };
 }
 
 export const useFileStore = create<FileStore>((set, get) => ({
@@ -66,10 +95,16 @@ export const useFileStore = create<FileStore>((set, get) => ({
 
   setSelectedFiles: (files) => set({ selectedFiles: files }),
 
-  addSelectedFile: (file) =>
+  addSelectedFile: (file) => {
+    const { canSelectFile } = get();
+    const check = canSelectFile(file);
+    if (!check.allowed) {
+      return;
+    }
     set((state) => ({
       selectedFiles: [...state.selectedFiles, file],
-    })),
+    }));
+  },
 
   removeSelectedFile: (fileId) =>
     set((state) => ({
@@ -105,14 +140,12 @@ export const useFileStore = create<FileStore>((set, get) => ({
       const newTree = removeFromTree(state.fileTree, path);
       const newExpanded = new Set(state.expandedFolders);
       
-      // Clean up expanded folders
       for (const p of state.expandedFolders) {
         if (p === path || p.startsWith(path + '/')) {
           newExpanded.delete(p);
         }
       }
       
-      // Clean up selected files - remove deleted file and any children
       const newSelectedFiles = state.selectedFiles.filter(
         f => f.path !== path && !f.path.startsWith(path + '/')
       );
@@ -144,7 +177,6 @@ export const useFileStore = create<FileStore>((set, get) => ({
         isExpanded: false,
       }));
 
-      // Collect all valid paths after refresh
       const validPaths = new Set<string>();
       const collectPaths = (items: FrontendFileItem[]) => {
         items.forEach(item => {
@@ -175,7 +207,6 @@ export const useFileStore = create<FileStore>((set, get) => ({
         }
       }
 
-      // Clean up selected files that no longer exist
       const validSelectedFiles = selectedFiles.filter(f => validPaths.has(f.path));
       if (validSelectedFiles.length !== selectedFiles.length) {
         set({ selectedFiles: validSelectedFiles });
@@ -190,4 +221,97 @@ export const useFileStore = create<FileStore>((set, get) => ({
 
   getSelectedByType: (type) =>
     get().selectedFiles.filter(f => f.type === type),
+
+  getSelectionState: () => {
+    const { selectedFiles, workingDirectory } = get();
+    const workingDirName = getWorkingDirName(workingDirectory);
+    
+    const xesFiles = selectedFiles.filter(
+      f => f.type === 'file' && f.name.toLowerCase().endsWith('.xes')
+    );
+    
+    const eventLog = xesFiles[0] ?? null;
+    const logFile = xesFiles.length > 0 ? xesFiles[xesFiles.length - 1] : null;
+    
+    const pnmlModel = selectedFiles.find(
+      f => f.type === 'file' && f.name.toLowerCase().endsWith('.pnml')
+    ) ?? null;
+    
+    const ptmlModel = selectedFiles.find(
+      f => f.type === 'file' && f.name.toLowerCase().endsWith('.ptml')
+    ) ?? null;
+    
+    const logDirectory = selectedFiles.find(f => {
+      if (f.type !== 'directory') return false;
+      if (EXCLUDED_DIRECTORIES.includes(f.name)) return false;
+      if (isTopLevelDirectory(f.path) && f.name === workingDirName) return false;
+      return true;
+    }) ?? null;
+    
+    const resultFiles = selectedFiles.filter(
+      f => f.type === 'file' && 
+           f.name.toLowerCase().endsWith('.json') && 
+           isInResultsDirectory(f.path)
+    );
+    
+    return { eventLog, pnmlModel, ptmlModel, logDirectory, logFile, resultFiles };
+  },
+
+  canSelectFile: (file: FileItem) => {
+    const { workingDirectory } = get();
+    const state = get().getSelectionState();
+    const fileName = file.name.toLowerCase();
+    const filePath = file.path.replace(/\\/g, '/');
+    const workingDirName = getWorkingDirName(workingDirectory);
+    
+    if (file.type === 'directory') {
+      if (EXCLUDED_DIRECTORIES.includes(file.name)) {
+        return { allowed: false, reason: `"${file.name}" cannot be selected` };
+      }
+      
+      if (isTopLevelDirectory(filePath) && file.name === workingDirName) {
+        return { allowed: true };
+      }
+      
+      if (state.logDirectory && state.logDirectory.id !== file.id) {
+        return { allowed: false, reason: 'A log directory is already selected. Deselect it first.' };
+      }
+      
+      return { allowed: true };
+    }
+    
+    if (file.type === 'file') {
+      if (fileName.endsWith('.xes')) {
+        if (state.eventLog && state.eventLog.id !== file.id) {
+          return { allowed: false, reason: 'An event log is already selected. Deselect it first.' };
+        }
+        return { allowed: true };
+      }
+      
+      if (fileName.endsWith('.pnml')) {
+        if (state.pnmlModel && state.pnmlModel.id !== file.id) {
+          return { allowed: false, reason: 'A Petri Net model is already selected. Deselect it first.' };
+        }
+        return { allowed: true };
+      }
+      
+      if (fileName.endsWith('.ptml')) {
+        if (state.ptmlModel && state.ptmlModel.id !== file.id) {
+          return { allowed: false, reason: 'A Process Tree model is already selected. Deselect it first.' };
+        }
+        return { allowed: true };
+      }
+      
+      if (fileName.endsWith('.json')) {
+        if (!isInResultsDirectory(filePath)) {
+          return { allowed: false, reason: 'Only .json files in the results directory can be selected' };
+        }
+        return { allowed: true };
+      }
+      
+      return { allowed: false, reason: 'Unsupported file type' };
+    }
+    
+    return { allowed: true };
+  },
 }));

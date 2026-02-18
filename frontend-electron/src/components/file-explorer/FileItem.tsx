@@ -17,11 +17,15 @@ export const FileItem: React.FC<FileItemProps> = ({
   onSelect,
   onDelete,
 }) => {
-  const { isFileSelected } = useFileStore();
+  const { isFileSelected, canSelectFile } = useFileStore();
   const isSelected = isFileSelected(file.id);
   const [isHovering, setIsHovering] = useState(false);
 
+  const selectionCheck = canSelectFile(file);
+  const isBlocked = !isSelected && !selectionCheck.allowed;
+
   const handleClick = () => {
+    if (isBlocked) return;
     onSelect(file);
   };
 
@@ -33,21 +37,23 @@ export const FileItem: React.FC<FileItemProps> = ({
   return (
     <div
       className={cn(
-        "flex items-center justify-between py-1 px-2 rounded-md cursor-pointer",
+        "flex items-center justify-between py-1 px-2 rounded-md",
         isSelected && "bg-accent border border-primary",
-        !isSelected && "hover:bg-accent/50"
+        !isSelected && !isBlocked && "hover:bg-accent/50 cursor-pointer",
+        isBlocked && "opacity-50 cursor-not-allowed"
       )}
       style={{ paddingLeft: `${level * 16 + 32}px` }}
       onClick={handleClick}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
+      title={isBlocked ? selectionCheck.reason : undefined}
     >
       <div className="flex items-center min-w-0">
         <FileText className="h-4 w-4 mr-2 text-gray-500 shrink-0" />
         <span className="text-sm truncate">{file.name}</span>
       </div>
 
-      {isHovering && (
+      {isHovering && !isBlocked && (
         <button
           onClick={handleDeleteClick}
           className="shrink-0 ml-2 p-1 hover:bg-destructive/20 rounded transition-colors"

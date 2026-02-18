@@ -228,7 +228,6 @@ export function TradeoffChart({ series }: TradeoffChartProps) {
             />
             <Tooltip content={<CustomTooltip />} />
             
-            {/* 10% fitness loss reference line */}
             <ReferenceLine 
               x={10} 
               stroke="#71717a" 
@@ -241,10 +240,8 @@ export function TradeoffChart({ series }: TradeoffChartProps) {
               }}
             />
             
-            {/* Zero speedup reference line */}
             <ReferenceLine y={0} stroke="#71717a" strokeWidth={1} />
             
-            {/* Lines and points for each log */}
             {Array.from(logDataMap.values()).map(({ logName, color, shape, points }) => (
               <Line
                 key={logName}
@@ -269,7 +266,6 @@ export function TradeoffChart({ series }: TradeoffChartProps) {
         </ResponsiveContainer>
       </div>
       
-      {/* Data labels note */}
       <p className="text-xs text-muted-foreground mt-2 text-center">
         Points show different threshold configurations (hover for details)
       </p>

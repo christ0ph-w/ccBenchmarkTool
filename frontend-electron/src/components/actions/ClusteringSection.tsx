@@ -11,14 +11,11 @@ import type { ValidationStep, SettingsItem } from './types';
 
 export function ClusteringSection() {
   const { clustering } = useSettingsStore();
-  const { selectedFiles, workingDirectory, refreshFileTree } = useFileStore();
+  const { workingDirectory, getSelectionState, refreshFileTree } = useFileStore();
   const { addLog } = useConsoleStore();
   const [status, setStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
 
-  const eventLogs = useMemo(
-    () => selectedFiles.filter((f) => f.type === 'file' && f.name.toLowerCase().endsWith('.xes')),
-    [selectedFiles]
-  );
+  const { eventLog } = getSelectionState();
 
   const log = (level: 'log' | 'warn' | 'error', message: string) => {
     addLog({
@@ -32,10 +29,10 @@ export function ClusteringSection() {
   };
 
   const steps = useMemo<ValidationStep[]>(() => [
-    eventLogs.length > 0
-      ? { label: 'Event log', status: 'ok', detail: eventLogs[0].name }
+    eventLog
+      ? { label: 'Event log', status: 'ok', detail: eventLog.name }
       : { label: 'Event log', status: 'warning', detail: 'Select a .xes file' },
-  ], [eventLogs]);
+  ], [eventLog]);
 
   const clusteringAlgoConfig = CLUSTERING_ALGORITHMS[clustering.algorithm];
 
@@ -59,14 +56,14 @@ export function ClusteringSection() {
   const canRun = steps.every((s) => s.status === 'ok') && !!workingDirectory;
 
   const handleRun = async () => {
-    if (!canRun) return;
+    if (!canRun || !eventLog) return;
 
     setStatus('running');
-    log('log', `Starting ${clustering.algorithm} on ${eventLogs[0].name}...`);
+    log('log', `Starting ${clustering.algorithm} on ${eventLog.name}...`);
 
     try {
       const result = await clusteringService.clusterFile({
-        file_path: eventLogs[0].path,
+        file_path: eventLog.path,
         clustering_algorithm: clustering.algorithm,
         algorithm_params: clustering.params,
       });
@@ -82,7 +79,6 @@ export function ClusteringSection() {
         log('log', `Exported ${result.data.exported_files.length} cluster files`);
       }
 
-      // Refresh file tree to show new files
       await refreshFileTree();
       log('log', 'File tree refreshed');
     } catch (err) {
