@@ -3,6 +3,7 @@ from pathlib import Path
 
 from config import Config
 from app.services import ClusteringPipeline
+from app.utils.clustering import CLUSTERERS
 
 
 class ClusteringController:
@@ -41,10 +42,10 @@ class ClusteringController:
             algorithm = data['clustering_algorithm']
             algorithm_params = data. get('algorithm_params', {})
             
-            if algorithm not in ['hierarchical', 'dbscan']:
+            if algorithm not in CLUSTERERS:
                 return jsonify({
                     'success': False,
-                    'error': f'Unknown algorithm: {algorithm}'
+                    'error': f'Unknown algorithm: {algorithm}. Available: {list(CLUSTERERS.keys())}'
                 }), 400
             
             abs_file_path = Config.get_absolute_data_path(file_path)

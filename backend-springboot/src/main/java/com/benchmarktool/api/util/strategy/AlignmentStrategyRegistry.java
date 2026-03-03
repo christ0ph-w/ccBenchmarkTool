@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -24,16 +25,11 @@ public class AlignmentStrategyRegistry {
         }
     }
     
-    public AlignmentStrategyRegistry(
-            ILPAlignmentStrategy ilpStrategy,
-            SplitPointAlignmentStrategy splitPointStrategy,
-            ProcessTreeAlignmentStrategy processTreeStrategy) {
-        
-        register(ilpStrategy);
-        register(splitPointStrategy);
-        register(processTreeStrategy);
-        
-        logger.info("Registered {} alignment strategies:  {}", strategies.size(), strategies.keySet());
+    public AlignmentStrategyRegistry(List<AlignmentStrategy> strategies) {
+        for (AlignmentStrategy strategy : strategies) {
+            register(strategy);
+        }
+        logger.info("Registered {} alignment strategies: {}", this.strategies.size(), this.strategies.keySet());
     }
     
     public void register(AlignmentStrategy strategy) {

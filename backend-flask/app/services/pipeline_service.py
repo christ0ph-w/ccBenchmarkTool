@@ -9,7 +9,7 @@ import logging
 from app.utils.extraction import extract_variants
 from app.utils.encoding import ActivityEncoder
 from app.utils.distance import DistanceMatrix
-from app.utils.clustering import DBSCANClusterer, HierarchicalClusterer
+from app.utils.clustering import CLUSTERERS
 from app.utils.exporting import XESExporter
 
 logger = logging.getLogger(__name__)
@@ -75,12 +75,10 @@ class ClusteringPipeline:
             #Cluster
             logger.info("Running %s clustering...", algorithm)
             
-            if algorithm == 'dbscan':
-                clusterer = DBSCANClusterer()
-            elif algorithm == 'hierarchical':
-                clusterer = HierarchicalClusterer()
-            else:
-                raise ValueError(f"Unknown algorithm: {algorithm}")
+            if algorithm not in CLUSTERERS:
+                raise ValueError(f"Unknown algorithm: {algorithm}. Available: {list(CLUSTERERS.keys())}")
+
+            clusterer = CLUSTERERS[algorithm]()
             
             clusterer.fit(self.distance_matrix, **algorithm_params)
             labels = clusterer.get_labels()

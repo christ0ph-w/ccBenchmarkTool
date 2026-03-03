@@ -1,57 +1,75 @@
 # Flask Clustering REST API
 
-Clustering and pipeline service for benchmark tool.
+Trace variant clustering service using Levenshtein distance.
 
-## Setup
+## Quick Start
 
-### Local Development (Windows)
+### Windows
 
 ```powershell
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
 .\venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
+python app.py
+```
 
-# Run the application
+### Linux/macOS
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 python app.py
 ```
 
 ### Docker
 
-```powershell
-# Build and run
+```bash
 docker build -t flask-clustering .
 docker run -p 5000:5000 flask-clustering
+```
 
-# Or use docker-compose from root directory
-cd ..
+Or from the root directory:
+
+```bash
 docker-compose up flask-backend
 ```
 
-## API Structure
+## API
 
-- `/api/clustering` - Clustering endpoints
-- Controller: `app/controllers/clustering_controller.py`
-- Service: `app/services/pipeline_service.py`
+**Base URL:** `http://localhost:5000/api`
 
-## Environment Variables
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/cluster/traces` | POST | Cluster variants from XES file |
 
-Copy `.env.example` to `.env` and configure as needed.
+### Example Request
 
-## Project Structure
+```json
+POST /api/cluster/traces
 
+{
+  "file_path": "path/to/EventLog.xes",
+  "clustering_algorithm": "hierarchical",
+  "algorithm_params": {
+    "n_clusters": 3,
+    "linkage": "average"
+  }
+}
 ```
-backend-flask/
-├── app/
-│   ├── controllers/
-│   ├── services/
-│   └── utils/
-├── tests/
-├── app.py
-├── config.py
-└── requirements.txt
-```
+
+**Available algorithms:** `dbscan`, `hierarchical`
+
+## Configuration
+
+Copy `.env.example` to `.env` and adjust as needed.
+
+## Documentation
+
+For detailed documentation including:
+- How the clustering pipeline works
+- Adding new clustering algorithms
+- Parameter explanations
+
+See [docs/components/backend-flask.md](../docs/components/backend-flask.md)

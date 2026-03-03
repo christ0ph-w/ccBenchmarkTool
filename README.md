@@ -1,63 +1,67 @@
-# CC Benchmark Tool
+# ccBenchmarkTool
 
-Multi-service benchmark application with Flask clustering backend, Spring Boot orchestration, alignment service, and Electron frontend.
+A desktop application for conformance checking benchmarks in process mining. Built as part of my thesis to measure alignment performance (time, memory, fitness) across different algorithms and optimization strategies.
 
-## Project Structure
+## System Architecture
 
+```mermaid
+flowchart TB
+    E[Electron + React]
+    S[Spring Boot]
+    F[Flask]
+    A[PTALIGN Service]
+    D[(data/)]
+    
+    E --> S
+    E --> F
+    S -->|spawns| A
+    S & F & A <--> D
 ```
-ccBenchmarkTool/
-├── backend-flask/          # Clustering REST API (Python/Flask)
-├── backend-alignment/      # Process tree alignment service (Python/Gurobi)
-├── backend-springboot/     # Orchestration backend (Java/Spring Boot)
-├── frontend-electron/      # Desktop UI (Electron)
-├── docs/                   # Documentation
-├── docker-compose.yml      # Docker orchestration
-└── README.md              # This file
-```
+
+| Component | Port | Purpose |
+|-----------|------|---------|
+| Spring Boot | 8080 | Benchmark orchestration, alignment execution |
+| Flask | 5000 | Trace variant clustering |
+| PTALIGN | 5001+ | Process tree alignment via Gurobi (managed by Spring Boot) |
+
+All backends expose REST APIs and can be operated independently via HTTP requests.
 
 ## Quick Start
 
-### Using Docker (Recommended)
+### Docker
 
-```powershell
-# Start all services
+```bash
 docker-compose up
-
-# Or in detached mode
-docker-compose up -d
-
-# Stop all services
-docker-compose down
 ```
+
+For building images and detailed setup, see the [Getting Started Guide](docs/getting-started.md).
 
 ### Manual Setup
 
-See individual component README files:
-- [Flask Clustering Backend](./backend-flask/README.md)
-- Spring Boot Backend (coming soon)
-- Alignment Service (coming soon)
-- Electron Frontend (coming soon)
+Each component has its own README with setup instructions:
 
-## Development
+- [Spring Boot Backend](./backend-springboot/README.md)
+- [Flask Clustering](./backend-flask/README.md)
+- [Alignment Service](./backend-alignment/README.md)
+- [Electron Frontend](./frontend-electron/README.md)
 
-### Prerequisites
-- Docker Desktop for Windows
-- Python 3.11+
-- Java 17+
-- Node.js 18+
-- Gurobi 13.0.0 (for alignment service)
+## Documentation
 
-## Migration Notes
+- [Architecture Overview](docs/architecture.md)
+- [API Reference](docs/api-reference.md)
+- [Getting Started](docs/getting-started.md)
 
-Restructured repository with:
-- Improved organization (monorepo structure)
-- Docker support for easy deployment
-- Better separation of concerns
-- Independent service scaling
+### Component Details
 
-## Components Status
+- [backend-springboot](docs/components/backend-springboot.md)
+- [backend-flask](docs/components/backend-flask.md)
+- [backend-alignment](docs/components/backend-alignment.md)
+- [frontend-electron](docs/components/frontend-electron.md)
 
--  Flask Clustering Backend - Migrated
--  Alignment Service - Pending
--  Spring Boot Backend - Pending
--  Electron Frontend - Pending
+## Supported Algorithms
+
+| Algorithm | Model Type | Implementation |
+|-----------|------------|----------------|
+| ILP | Petri Net (.pnml) | Java via ProM |
+| SplitPoint | Petri Net (.pnml) | Java via ProM |
+| PTALIGN | Process Tree (.ptml) | Python with Gurobi |
