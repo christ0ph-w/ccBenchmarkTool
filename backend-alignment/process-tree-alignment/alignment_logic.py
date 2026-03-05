@@ -2,8 +2,15 @@
 Core alignment logic and orchestration.
 
 Contains the main alignment loop, reference selection, and fitness computation.
-"""
 
+FITNESS FORMULA CONFIGURATION:
+    To switch between fitness formulas, change the function name in align_variants():
+    
+    - compute_fitness(...)        -> Standard formula: 1 - (cost / (trace_length + shortest_path_cost))
+    - compute_fitness_legacy(...) -> Legacy formula:   1 - (cost / (trace_length + cost))
+    
+    Search for "compute_fitness" to find all 5 call sites that need updating in "def align_variants".
+"""
 import time
 from typing import Dict, List, Tuple, Optional
 
@@ -232,7 +239,7 @@ def align_variants(
                 known_costs[variant.matrix_idx] = cost
 
             variant_costs[variant.signature] = cost
-            fitness = compute_fitness(cost, len(variant.activities), shortest_path)
+            fitness = compute_fitness_legacy(cost, len(variant.activities), shortest_path)
 
             results.append(AlignmentResultData(
                 variant_index=idx,
@@ -296,7 +303,7 @@ def align_variants(
                 )
 
             variant_costs[variant.signature] = cost
-            fitness = compute_fitness(cost, len(variant.activities), shortest_path)
+            fitness = compute_fitness_legacy(cost, len(variant.activities), shortest_path)
 
             results.append(AlignmentResultData(
                 variant_index=ref_idx,
@@ -360,7 +367,7 @@ def align_variants(
                 known_costs[variant.matrix_idx] = estimated_cost
 
             variant_costs[variant.signature] = estimated_cost
-            fitness = compute_fitness(cost, len(variant.activities), shortest_path)
+            fitness = compute_fitness_legacy(estimated_cost, len(variant.activities), shortest_path)
             align_time = (time.time() - var_start) * 1000
 
             results.append(AlignmentResultData(
@@ -439,7 +446,7 @@ def align_variants(
             )
 
         variant_costs[variant.signature] = cost
-        fitness = compute_fitness(cost, len(variant.activities), shortest_path)
+        fitness = compute_fitness_legacy(cost, len(variant.activities), shortest_path)
 
         results.append(AlignmentResultData(
             variant_index=idx,

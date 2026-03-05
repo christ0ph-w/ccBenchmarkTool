@@ -135,7 +135,12 @@ class ProcessTreeGraph(nx.MultiDiGraph):
 
     @cached_property
     def shortest_path_cost(self) -> float:
-        """Compute minimum cost path from source to sink."""
+        """
+        Compute minimum number of labeled activities to complete the model.
+        c(γ_model-only) in the standard fitness formula:
+        the cost of aligning an empty trace with the model (only model moves).
+        Tau/silent transitions have cost 0, labeled transitions have cost 1.
+        """
         source = None
         sink = None
         for node in self.nodes:
@@ -150,8 +155,12 @@ class ProcessTreeGraph(nx.MultiDiGraph):
         if source == sink:
             return 0.0
         
+        def activity_cost(u, v, edge_data):
+            """Cost is 1 for labeled edges (activities), 0 for tau."""
+            return 1 if edge_data.get('label') is not None else 0
+        
         try:
-            return nx.shortest_path_length(self, source, sink, weight='cost')
+            return float(nx.shortest_path_length(self, source, sink, weight=activity_cost))
         except nx.NetworkXNoPath:
             return 0.0
 

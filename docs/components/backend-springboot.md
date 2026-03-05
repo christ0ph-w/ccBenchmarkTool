@@ -7,7 +7,7 @@ Java REST API for benchmark orchestration. Handles ILP/SPLITPOINT alignments dir
 | Property | Value |
 |----------|-------|
 | Port | 8080 |
-| Base URL | `http://localhost:8080/api/benchmark` |
+| Base URL | http://localhost:8080/api/benchmark |
 | Purpose | Orchestrate alignment benchmarks across multiple algorithms |
 
 ## Package Structure
@@ -15,27 +15,33 @@ Java REST API for benchmark orchestration. Handles ILP/SPLITPOINT alignments dir
 ```
 com.benchmarktool.api/
 ├── controller/
-│   └── BenchmarkingController.java    # REST endpoints
+│   └── BenchmarkingController.java
+├── model/
+│   ├── BenchmarkRequest.java
+│   ├── BenchmarkResult.java
+│   └── LogBenchmarkResult.java
 ├── service/
-│   ├── BenchmarkExecutor.java         # Runs benchmarks
-│   ├── BenchmarkResultExporter.java   # Exports results to JSON
-│   └── ResultCache.java               # Caches async results
+│   ├── BenchmarkExecutor.java
+│   ├── BenchmarkResultExporter.java
+│   └── ResultCache.java
 └── util/strategy/
-    ├── AlignmentStrategy.java         # Strategy interface
-    ├── AlignmentStrategyRegistry.java # Auto-discovers strategies
-    ├── AlignmentInput.java            # Input wrapper
-    ├── AlignmentResult.java           # Unified result format
-    ├── ModelType.java                 # PETRI_NET or PROCESS_TREE
-    ├── ILPAlignmentStrategy.java      # ProM ILP
-    ├── SplitPointAlignmentStrategy.java # ProM SplitPoint
-    ├── ProcessTreeAlignmentStrategy.java # Python PTALIGN
+    ├── AlignmentStrategy.java
+    ├── AlignmentStrategyRegistry.java
+    ├── AlignmentInput.java
+    ├── AlignmentResult.java
+    ├── TimingBreakdown.java
+    ├── TraceAlignmentDetail.java
+    ├── ModelType.java
+    ├── ILPAlignmentStrategy.java
+    ├── SplitPointAlignmentStrategy.java
+    ├── ProcessTreeAlignmentStrategy.java
     └── ptalign/
-        ├── PythonServerManager.java   # Manages Python processes
-        ├── AlignmentClient.java       # HTTP client
-        └── ResponseParser.java        # JSON parsing
+        ├── PythonServerManager.java
+        ├── AlignmentClient.java
+        └── ResponseParser.java
 ```
 
-## How It Works
+## Request Flow
 
 ```mermaid
 flowchart TB
@@ -50,19 +56,36 @@ flowchart TB
     Res --> Exp[ResultExporter]
 ```
 
-1. Request arrives with algorithm name and file paths
-2. `BenchmarkExecutor` gets the strategy from `AlignmentStrategyRegistry`
-3. Strategy computes alignment (either via ProM or Python)
-4. Results are converted to unified `AlignmentResult` format
-5. Results are cached and optionally exported to JSON
+## PTALIGN Data Flow
 
-## Adding a New Alignment Algorithm
+```mermaid
+flowchart LR
+    A[alignment_server.py] -->|JSON| B[ResponseParser.java]
+    B --> C[AlignmentResult.java]
+    C --> D[BenchmarkExecutor.java]
+    D --> E[LogBenchmarkResult.java]
+    E --> F[BenchmarkResultExporter.java]
+    F --> G[benchmark.json]
+```
 
-### Case 1: Java-based algorithm (simple)
+## Fitness Calculation
 
-For algorithms that run in-process (like ProM-based).
+Fitness is calculated in the Python backend.
+To switch formulas, change the function name at call sites in align_variants.
+The shortest_path_cost is the minimum number of labeled transitions from source to sink in the process tree graph. For models where empty traces are valid, this value is 0.
 
-**Step 1:** Create the strategy class in `util/strategy/`:
+## Adding a New Algorithm
+
+### Java-based Algorithm
+
+```mermaid
+flowchart LR
+    A[Create Strategy Class] --> B[Add Component Annotation]
+    B --> C[Implement AlignmentStrategy]
+    C --> D[Spring Auto-discovers]
+```
+
+Create the strategy class in util/strategy/:
 
 ```java name=NewAlgorithmStrategy.java
 package com.benchmarktool.api.util.strategy;
@@ -74,15 +97,14 @@ public class NewAlgorithmStrategy implements AlignmentStrategy {
 
     @Override
     public ModelType getModelType() {
-        return ModelType.PETRI_NET;  // or PROCESS_TREE
+        return ModelType.PETRI_NET;
     }
 
     @Override
     public AlignmentResult computeAlignment(AlignmentInput input) throws Exception {
         long startTime = System.currentTimeMillis();
         
-        // Your alignment logic here
-        // Use input.getLog(), input.getPetriNet(), etc.
+        // alignment logic here
         
         long executionTime = System.currentTimeMillis() - startTime;
         
@@ -106,28 +128,21 @@ public class NewAlgorithmStrategy implements AlignmentStrategy {
 }
 ```
 
-**Step 2:** Done. The `@Component` annotation ensures Spring auto-discovers and registers it.
+The Component annotation ensures Spring auto-discovers and registers it.
 
-Verify by calling:
+### External Service Algorithm
+
+```mermaid
+flowchart TB
+    A[ProcessTreeAlignmentStrategy] --> B[PythonServerManager]
+    A --> C[AlignmentClient]
+    A --> D[ResponseParser]
+    B --> E[Start/Stop Processes]
+    C --> F[HTTP Communication]
+    D --> G[JSON to AlignmentResult]
 ```
-GET /api/benchmark/algorithms
-```
 
-### Case 2: External service algorithm (advanced)
-
-For algorithms that run in a separate process (like PTALIGN with Python/Gurobi).
-
-This is more complex. See `ProcessTreeAlignmentStrategy.java` as a reference. You'll need:
-
-- Server lifecycle management (start/stop processes)
-- HTTP client for communication
-- Response parsing
-- Error handling and retries
-
-Key classes to study:
-- `util/strategy/ptalign/PythonServerManager.java` - Process management
-- `util/strategy/ptalign/AlignmentClient.java` - HTTP communication
-- `util/strategy/ptalign/ResponseParser.java` - JSON to `AlignmentResult`
+See ProcessTreeAlignmentStrategy.java as a reference implementation.
 
 ## Key Interfaces
 
@@ -146,16 +161,138 @@ public interface AlignmentStrategy {
 
 ```java
 public enum ModelType {
-    PETRI_NET("pnml"),    // .pnml files
-    PROCESS_TREE("ptml"); // .ptml files
+    PETRI_NET("pnml"),
+    PROCESS_TREE("ptml");
 }
 ```
 
-The `ModelType` determines which model file path the executor looks for in the request.
+The ModelType determines which model file path the executor looks for in the request.
+
+## Exported JSON Structure
+Results are exported to data/dataset/results/benchmark_id_algorithm_model_n_logs.json
+
+```json
+{
+  "benchmarkId": "20c7e96f-b8cf-42b9-8040-c0ff94db2e2b",
+  "algorithm": "PTALIGN",
+  "modelFile": "Sepsis_Cases_25.ptml",
+  "logName": "Sepsis_Cases",
+  "logDirectory": "Sepsis_Cases_random_variant_split_3",
+  "logCount": 3,
+  "numThreads": 1,
+  "timestamp": "20260305_144209",
+  "summary": {
+    "avgFitness": 0.789147,
+    "avgCost": 2.546270,
+    "successfulAlignments": 846,
+    "failedAlignments": 0,
+    "totalTraces": 1050,
+    "totalVariants": 846,
+    "totalLogsProcessed": 3,
+    "totalExecutionTimeMs": 67817,
+    "totalComputeTimeMs": 58936,
+    "peakMemoryMb": 118
+  },
+  "ptalignConfig": {
+    "propagateCosts": false,
+    "useBounds": false,
+    "useWarmStart": false
+  },
+  "logs": {
+    "random_variant_split_0": { ... },
+    "random_variant_split_1": {
+      "totalTraces": 396,
+      "totalVariants": 282,
+      "successfulAlignments": 282,
+      "failedAlignments": 0,
+      "avgFitness": 0.707516,
+      "avgCost": 2.825758,
+      "shortestPathCost": 0.0,
+      "executionTimeMs": 23075,
+      "memoryUsedMb": 1,
+      "timing": {
+        "totalMs": 23075,
+        "computeMs": 20077,
+        "overheadMs": 2998,
+        "parseMs": 315,
+        "networkMs": 2683,
+        "efficiency": 0.870
+      },
+      "optimizationStats": {
+        "fullAlignments": 282,
+        "warmStartAlignments": 0,
+        "boundedSkips": 0,
+        "cachedAlignments": 0,
+        "optimizationRate": 0.0
+      },
+      "alignments": [
+        {
+          "variantName": ["ER Registration", "Leucocytes", ...],
+          "alignmentCost": 2.0,
+          "fitness": 0.85,
+          "traceLength": 12,
+          "traceCount": 1,
+          "alignmentTimeMs": 67,
+          "statesExplored": 0,
+          "method": "full",
+          "lowerBound": 3.0,
+          "upperBound": 8.0,
+          "confidence": 1.0
+        },
+        ...
+      ],
+      "boundsProgression": [
+        {
+          "variantIndex": 115,
+          "numReferences": 0,
+          "lowerBound": 0.0,
+          "actualCost": 2.0,
+          "method": "full"
+        },
+        {
+          "variantIndex": 0,
+          "numReferences": 1,
+          "lowerBound": 0.0,
+          "upperBound": 10.0,
+          "gap": 10.0,
+          "actualCost": 3.0,
+          "method": "full"
+        },
+        {
+          "variantIndex": 2,
+          "numReferences": 3,
+          "lowerBound": 0.0,
+          "upperBound": 27.0,
+          "gap": 27.0,
+          "estimatedCost": 27.0,
+          "method": "bounded_skip"
+        },
+        ...
+      ],
+      "globalBoundsProgression": [
+        {
+          "numReferences": 1,
+          "numRemaining": 281,
+          "meanLowerBound": 1.2,
+          "meanUpperBound": 8.5,
+          "meanGap": 7.3,
+          "minGap": 0.5,
+          "maxGap": 15.0,
+          "numSkippable": 45
+        },
+        ...
+      ]
+    }
+  }
+}
+```
+
+The boundsProgression and globalBoundsProgression arrays are only present when bounds-based optimization is enabled. Each log entry in logs contains one entry per processed log file.
+
 
 ## Configuration
 
-`src/main/resources/application.properties`:
+Edit src/main/resources/application.properties:
 
 ```properties
 server.port=8080
@@ -165,4 +302,4 @@ benchmark.data.directory=../data
 
 ## Setup
 
-See [backend-springboot/README.md](../../backend-springboot/README.md) for installation and running instructions.
+See [backend-springboot/README.md](../../backend-springboot/README.md) for further instructions and installation. 
