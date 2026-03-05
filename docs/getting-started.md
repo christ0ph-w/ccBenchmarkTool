@@ -223,7 +223,7 @@ docker-compose up flask-backend
 
 ## Verifying the Setup
 
-1. Open the frontend at http://localhost:5173
+1. Developement: run "npm run dev" or open http://localhost:5173
 2. Load a dataset from the data directory
 3. Run clustering on a log file
 4. Run an alignment benchmark
