@@ -72,8 +72,7 @@ application-local.yml
 *.tar.gz
 *.rar
 
-# === Native libraries (commit these explicitly if needed) ===
-# Uncomment if you want to exclude them:
+# === Native libraries ===
 # lib/*.dll
 # lib/*.so
 # lib/*.dylib
