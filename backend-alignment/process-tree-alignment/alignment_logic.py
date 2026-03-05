@@ -22,12 +22,27 @@ from process_tree_graph import ProcessTreeGraph
 from process_tree_alignment_opt import align
 
 
-def compute_fitness(cost: float, trace_length: int) -> float:
-    """Compute fitness score from alignment cost."""
+def compute_fitness_legacy(cost: float, trace_length: int, shortest_path_cost: float = 0.0) -> float:
+    """
+    Legacy fitness calculation (incorrect denominator).
+    --> used in thesis for comparing random vs cluster runs
+    Note: shortest_path_cost parameter is ignored (kept for signature compatibility).
+    see def align_variants(...) to revert to this method
+    """
     if trace_length == 0:
         return 1.0
 
     denominator = trace_length + cost
+    if denominator == 0:
+        return 1.0
+
+    return 1.0 - (cost / denominator)
+
+def compute_fitness(cost: float, trace_length: int, shortest_path_cost: float) -> float:
+    """
+    Compute fitness score from alignment cost. Standard formula as used in established research
+    """
+    denominator = trace_length + shortest_path_cost
     if denominator == 0:
         return 1.0
 
@@ -178,6 +193,9 @@ def align_variants(
     Returns:
         (results, stats, variant_costs, bounds_progression, global_snapshots)
     """
+    # Get shortest path cost for fitness calculation
+    shortest_path = process_tree_graph.shortest_path_cost
+
     stats = AlignmentStats(total_variants=len(variants))
     results: List[AlignmentResultData] = []
     bounds_progression: List[BoundsProgressionEntry] = []
@@ -197,7 +215,6 @@ def align_variants(
 
     processed: set = set()
 
-    # Resolve matrix indices for all variants
     valid_matrix_count = 0
     for variant in variants:
         variant.matrix_idx = get_variant_matrix_index(variant.signature)
@@ -206,7 +223,6 @@ def align_variants(
 
     print(f"Variants with valid matrix indices: {valid_matrix_count}/{len(variants)}")
 
-    # Handle cached costs from prior clusters
     cached_count = 0
     for idx, variant in enumerate(variants):
         if variant.signature in prior_costs:
@@ -216,7 +232,7 @@ def align_variants(
                 known_costs[variant.matrix_idx] = cost
 
             variant_costs[variant.signature] = cost
-            fitness = compute_fitness(cost, len(variant.activities))
+            fitness = compute_fitness(cost, len(variant.activities), shortest_path)
 
             results.append(AlignmentResultData(
                 variant_index=idx,
@@ -280,7 +296,7 @@ def align_variants(
                 )
 
             variant_costs[variant.signature] = cost
-            fitness = compute_fitness(cost, len(variant.activities))
+            fitness = compute_fitness(cost, len(variant.activities), shortest_path)
 
             results.append(AlignmentResultData(
                 variant_index=ref_idx,
@@ -344,7 +360,7 @@ def align_variants(
                 known_costs[variant.matrix_idx] = estimated_cost
 
             variant_costs[variant.signature] = estimated_cost
-            fitness = compute_fitness(estimated_cost, len(variant.activities))
+            fitness = compute_fitness(cost, len(variant.activities), shortest_path)
             align_time = (time.time() - var_start) * 1000
 
             results.append(AlignmentResultData(
@@ -374,7 +390,7 @@ def align_variants(
             stats.bounded_skips += 1
             continue
 
-        # Check for warm start opportunity
+        # check for warm start possibility
         best_ref = find_best_reference(variant, known_solutions)
 
         if config.use_warm_start and best_ref is not None:
@@ -423,7 +439,7 @@ def align_variants(
             )
 
         variant_costs[variant.signature] = cost
-        fitness = compute_fitness(cost, len(variant.activities))
+        fitness = compute_fitness(cost, len(variant.activities), shortest_path)
 
         results.append(AlignmentResultData(
             variant_index=idx,
@@ -456,7 +472,7 @@ def align_variants(
             remaining_matrix_indices = [
                 variants[i].matrix_idx for i in range(len(variants))
                 if i not in processed and variants[i].matrix_idx is not None
-                and i != idx  # Exclude the one we just processed
+                and i != idx
             ]
             snapshot = compute_global_bounds_snapshot(
                 known_costs, remaining_matrix_indices, config.bound_threshold

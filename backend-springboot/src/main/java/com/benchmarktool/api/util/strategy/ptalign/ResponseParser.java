@@ -30,6 +30,7 @@ public class ResponseParser {
         int failed = json.get("failed_alignments").asInt();
         int totalTraces = json.get("total_traces").asInt();
         int totalVariants = json.get("total_variants").asInt();
+        Double shortestPathCost = json.has("shortest_path_cost") ? json.get("shortest_path_cost").asDouble() : null;
 
         TimingBreakdown timing = parseTiming(json, totalRequestTimeMs);
         AlignmentResult.OptimizationStats stats = parseOptimizationStats(json);
@@ -46,6 +47,7 @@ public class ResponseParser {
             .totalVariants(totalVariants)
             .successfulAlignments(successful)
             .failedAlignments(failed)
+            .shortestPathCost(shortestPathCost)
             .executionTimeMs(totalRequestTimeMs)
             .timing(timing)
             .optimizationStats(stats)

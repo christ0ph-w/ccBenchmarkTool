@@ -18,6 +18,7 @@ public class LogBenchmarkResult {
     private int failedAlignments;
     private double avgFitness;
     private double avgCost;
+    private Double shortestPathCost;
     private long executionTimeMs;
     private long memoryUsedMb;
     private TimingBreakdown timing;
@@ -113,6 +114,9 @@ public class LogBenchmarkResult {
 
     public double getAvgCost() { return avgCost; }
     public void setAvgCost(double avgCost) { this.avgCost = avgCost; }
+
+    public Double getShortestPathCost() { return shortestPathCost; }
+    public void setShortestPathCost(Double shortestPathCost) { this.shortestPathCost = shortestPathCost; }
 
     public long getExecutionTimeMs() { return executionTimeMs; }
     public void setExecutionTimeMs(long executionTimeMs) { this.executionTimeMs = executionTimeMs; }

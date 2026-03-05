@@ -181,6 +181,9 @@ public class BenchmarkResultExporter {
         logNode.put("failedAlignments", logResult.getFailedAlignments());
         logNode.put("avgFitness", logResult.getAvgFitness());
         logNode.put("avgCost", logResult.getAvgCost());
+        if (logResult.getShortestPathCost() != null) {
+            logNode.put("shortestPathCost", logResult.getShortestPathCost());
+        }
         logNode.put("executionTimeMs", logResult.getExecutionTimeMs());
         logNode.put("memoryUsedMb", logResult.getMemoryUsedMb());
 

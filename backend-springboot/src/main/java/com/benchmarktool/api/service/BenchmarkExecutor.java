@@ -286,6 +286,8 @@ public class BenchmarkExecutor {
                 alignmentResult.getGlobalBoundsProgression()
             );
 
+            result.setShortestPathCost(alignmentResult.getShortestPathCost());
+
             logger.info("{} - Fitness: {}, Cost: {}, Variants: {}, Time: {}ms{}",
                 logName,
                 String.format("%.4f", alignmentResult.getAvgFitness()),

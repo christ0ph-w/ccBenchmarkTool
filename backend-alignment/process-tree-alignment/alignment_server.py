@@ -211,6 +211,8 @@ def _build_response(results, stats, variants, variant_costs,
     avg_fitness = weighted_fitness / total_traces if total_traces > 0 else 0
     avg_cost = weighted_cost / total_traces if total_traces > 0 else 0
 
+    shortest_path = process_tree_graph.shortest_path_cost if process_tree_graph else 0.0
+
     print(f"Completed: {len(results)} variants, avg_fitness={avg_fitness:.4f}, avg_cost={avg_cost:.4f}")
     print(f"Stats: full={stats.full_alignments}, warm={stats.warm_start_alignments}, "
           f"skipped={stats.bounded_skips}, cached={stats.cached_alignments}")
@@ -222,6 +224,7 @@ def _build_response(results, stats, variants, variant_costs,
         "failed_alignments": 0,
         "total_traces": total_traces,
         "total_variants": len(variants),
+        "shortest_path_cost": round(shortest_path, 6),
         "timing": {
             "parse_time_ms": round(stats.parse_time_ms, 2),
             "total_alignment_time_ms": round(stats.alignment_time_ms, 2),

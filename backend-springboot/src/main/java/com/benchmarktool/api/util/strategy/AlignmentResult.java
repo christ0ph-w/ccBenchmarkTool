@@ -14,6 +14,7 @@ public class AlignmentResult {
     private final int totalVariants;
     private final int successfulAlignments;
     private final int failedAlignments;
+    private final Double shortestPathCost;
     private final long executionTimeMs;
     private final TimingBreakdown timing;
     private final OptimizationStats optimizationStats;
@@ -28,6 +29,7 @@ public class AlignmentResult {
         this.totalVariants = builder.totalVariants;
         this.successfulAlignments = builder.successfulAlignments;
         this.failedAlignments = builder.failedAlignments;
+        this.shortestPathCost = builder.shortestPathCost;
         this.executionTimeMs = builder.executionTimeMs;
         this.timing = builder.timing;
         this.optimizationStats = builder.optimizationStats;
@@ -43,6 +45,7 @@ public class AlignmentResult {
     public int getTotalVariants() { return totalVariants; }
     public int getSuccessfulAlignments() { return successfulAlignments; }
     public int getFailedAlignments() { return failedAlignments; }
+    public Double getShortestPathCost() { return shortestPathCost; }
     public long getExecutionTimeMs() { return executionTimeMs; }
     public TimingBreakdown getTiming() { return timing; }
     public OptimizationStats getOptimizationStats() { return optimizationStats; }
@@ -177,6 +180,7 @@ public class AlignmentResult {
         private int totalVariants;
         private int successfulAlignments;
         private int failedAlignments;
+        private Double shortestPathCost;
         private long executionTimeMs;
         private TimingBreakdown timing;
         private OptimizationStats optimizationStats;
@@ -211,6 +215,11 @@ public class AlignmentResult {
 
         public Builder failedAlignments(int failedAlignments) {
             this.failedAlignments = failedAlignments;
+            return this;
+        }
+        
+        public Builder shortestPathCost(Double shortestPathCost) {
+            this.shortestPathCost = shortestPathCost;
             return this;
         }
 

@@ -1,4 +1,5 @@
 from collections.abc import Hashable
+from functools import cached_property
 
 import networkx as nx
 import numpy as np
@@ -131,6 +132,28 @@ class ProcessTreeGraph(nx.MultiDiGraph):
 
         self._build_process_tree_subgraph(tree.children[0], start_node, end_node, iac)
         self._build_process_tree_subgraph(tree.children[1], end_node, start_node, iac)
+
+    @cached_property
+    def shortest_path_cost(self) -> float:
+        """Compute minimum cost path from source to sink."""
+        source = None
+        sink = None
+        for node in self.nodes:
+            if self.nodes[node].get('source'):
+                source = node
+            if self.nodes[node].get('sink'):
+                sink = node
+        
+        if source is None or sink is None:
+            return 0.0
+        
+        if source == sink:
+            return 0.0
+        
+        try:
+            return nx.shortest_path_length(self, source, sink, weight='cost')
+        except nx.NetworkXNoPath:
+            return 0.0
 
     def view(self, rotate: bool = True, rad: float = .0, rad_offset: float = 0.0) -> None:
         pos = nx.kamada_kawai_layout(self)
