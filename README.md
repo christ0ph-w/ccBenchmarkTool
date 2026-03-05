@@ -28,12 +28,6 @@ All backends expose REST APIs and can be operated independently via HTTP request
 
 ## Quick Start
 
-### Docker
-
-```bash
-docker-compose up
-```
-
 For building images and detailed setup, see the [Getting Started Guide](docs/getting-started.md).
 
 ### Manual Setup
