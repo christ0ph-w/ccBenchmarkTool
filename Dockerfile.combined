@@ -1,29 +1,28 @@
-# ==============================================================================
-# Combined Spring Boot + Python Alignment Server (Optimized)
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
 # Stage 1: Build Spring Boot JAR
-# ------------------------------------------------------------------------------
 FROM eclipse-temurin:21-jdk-jammy AS java-builder
 
 WORKDIR /app
 
+# Copy Gradle wrapper files
 COPY backend-springboot/gradlew .
 COPY backend-springboot/gradle gradle
 COPY backend-springboot/build.gradle .
 COPY backend-springboot/settings.gradle .
 
-RUN chmod +x gradlew && ./gradlew dependencies --no-daemon || true
+# Fix line endings (CRLF -> LF) and ensure executable permissions
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
 
+# Download dependencies first (for better caching)
+RUN ./gradlew dependencies --no-daemon || true
+
+# Copy source and libraries
 COPY backend-springboot/src src
 COPY backend-springboot/lib lib
 
+# Build the JAR
 RUN ./gradlew bootJar --no-daemon
 
-# ------------------------------------------------------------------------------
 # Stage 2: Build Python dependencies
-# ------------------------------------------------------------------------------
 FROM python:3.11-slim AS python-builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,37 +33,28 @@ COPY backend-alignment/requirements.txt /tmp/requirements.txt
 
 RUN pip install --no-cache-dir --target=/python-packages -r /tmp/requirements.txt
 
-# ------------------------------------------------------------------------------
-# Stage 3: Final runtime image (minimal)
-# ------------------------------------------------------------------------------
+# Stage 3: Final runtime image
 FROM eclipse-temurin:21-jre-jammy
 
 WORKDIR /app
 
-# Install only Python runtime (no build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-venv \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/bin/python3.11 /usr/bin/python
 
-# Copy pre-built Python packages
 COPY --from=python-builder /python-packages /usr/local/lib/python3.11/dist-packages
 
-# Copy Java artifacts
 COPY --from=java-builder /app/build/libs/*.jar app.jar
 
-# Copy Linux lpsolve libraries
 COPY backend-springboot/lib/linux /app/lib/linux
 
-# Copy Python alignment server
 COPY backend-alignment/process-tree-alignment /app/backend-alignment/process-tree-alignment
 
-# Gurobi license location
 ENV GRB_LICENSE_FILE=/app/gurobi.lic
 ENV PYTHONPATH=/usr/local/lib/python3.11/dist-packages
 
-# Java configuration
 ENV JAVA_OPTS="-Xmx8g -Xms4g -Djava.library.path=/app/lib/linux"
 
 EXPOSE 8080
