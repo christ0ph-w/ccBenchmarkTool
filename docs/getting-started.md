@@ -26,7 +26,7 @@ gurobi_cl --version
 
 Place your gurobi.lic file in the root directory of the project. The alignment server will not work without it.
 
-You can get a free academic license at gurobi.com if you have a university email.
+You can get a free academic license for gurobi.
 
 ### LPSolve Libraries
 
