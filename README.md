@@ -1,6 +1,6 @@
 # ccBenchmarkTool
 
-A desktop application for conformance checking benchmarks in process mining. Built as part of my thesis to measure alignment performance (time, memory, fitness) across different algorithms and optimization strategies.
+A desktop application for conformance checking benchmarks in process mining. Built to measure alignment performance (time, memory, fitness) across different algorithms and optimization strategies.
 
 ## System Architecture
 
